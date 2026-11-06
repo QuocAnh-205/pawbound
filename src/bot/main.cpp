@@ -54,7 +54,7 @@ double pct(std::vector<double> v, double p) {
 
 int main(int argc, char** argv) {
   std::string host_name = "127.0.0.1", sk_path = "config/dev_keys/ticket_sk.b64", world_dir = "out/world_demo",
-              server_id = "dev-1", out_json;
+              server_id = "dev-1", out_json, fixed_ticket;  // --ticket: dùng ticket do Backend cấp (chỉ cho --count 1)
   int count = 2, port = net::kDefaultPort, char_base = 10000;
   double duration = 30, ramp = 0.05;
   net::NetSimSettings ns;
@@ -74,6 +74,7 @@ int main(int argc, char** argv) {
     else if (s == "--sim-latency") ns.latency_ms = std::stod(next());
     else if (s == "--sim-jitter") ns.jitter_ms = std::stod(next());
     else if (s == "--out") out_json = next();
+    else if (s == "--ticket") fixed_ticket = next();
     else {
       std::fprintf(stderr, "cách dùng: pawbound_bot [--count n] [--duration s] [--host h] [--port p] [--world dir] [--sk file] "
                            "[--sim-loss 0..1 --sim-latency ms --sim-jitter ms] [--out kết_quả.json]\n");
@@ -81,8 +82,12 @@ int main(int argc, char** argv) {
     }
   }
   if (enet_initialize() != 0 || !net::crypto_init()) return 1;
-  net::SecretKey sk;
-  {
+  if (!fixed_ticket.empty() && count != 1) {
+    log::fatal("bot", "--ticket chỉ dùng với --count 1 (mỗi ticket dùng một lần)");
+    return 2;
+  }
+  net::SecretKey sk{};
+  if (fixed_ticket.empty()) {
     std::ifstream f(sk_path);
     std::string b64;
     f >> b64;
@@ -138,7 +143,7 @@ int main(int argc, char** argv) {
       while (enet_host_service(b.host, &ev, 0) > 0) {
         if (ev.type == ENET_EVENT_TYPE_CONNECT) {
           b.connected = true;
-          const auto ticket = net::sign_ticket({static_cast<uint64_t>(char_base + b.index), static_cast<uint64_t>(char_base + b.index),
+          const auto ticket = !fixed_ticket.empty() ? fixed_ticket : net::sign_ticket({static_cast<uint64_t>(char_base + b.index), static_cast<uint64_t>(char_base + b.index),
                                                 server_id, unix_now() + 120, net::random_jti()}, sk);
           send(b, net::PacketType::Hello, net::write(net::Hello{net::kProtocolVersion, ticket, hash, "bot"}), true);
         } else if (ev.type == ENET_EVENT_TYPE_DISCONNECT) {

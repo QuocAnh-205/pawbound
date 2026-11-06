@@ -1,0 +1,175 @@
+// PAWBOUND — schema PostgreSQL (Phase 11). Xem docs/architecture/database-design.md.
+// Quy ước: khóa chính UUID; numericId (BigInt tự tăng) cho game server (ticket dùng id số u64).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+  DELETED
+}
+
+enum Role {
+  PLAYER
+  ADMIN
+}
+
+enum ServerStatus {
+  ONLINE
+  DRAINING
+  OFFLINE
+}
+
+model User {
+  id            String         @id @default(uuid()) @db.Uuid
+  numericId     BigInt         @unique @default(autoincrement())
+  email         String         @unique
+  passwordHash  String
+  status        UserStatus     @default(ACTIVE)
+  role          Role           @default(PLAYER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  profile       PlayerProfile?
+  characters    DogCharacter[]
+  refreshTokens RefreshToken[]
+  sessions      GameSession[]
+}
+
+// Refresh token chỉ lưu HASH (SHA-256), không lưu bản gốc. familyId: chuỗi xoay vòng; dùng lại token đã xoay -> thu hồi cả họ.
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  familyId     String    @db.Uuid
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+model PlayerProfile {
+  userId           String   @id @db.Uuid
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName      String
+  displayNameLower String   @unique
+  locale           String   @default("vi")
+  createdAt        DateTime @default(now())
+}
+
+model DogCharacter {
+  id           String               @id @default(uuid()) @db.Uuid
+  numericId    BigInt               @unique @default(autoincrement())
+  userId       String               @db.Uuid
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  breedId      String
+  level        Int                  @default(1)
+  xp           Int                  @default(0)
+  // Trạng thái game (vị trí, chỉ số, túi đồ) do game server ghi qua API nội bộ.
+  state        Json                 @default("{}")
+  stateVersion Int                  @default(0)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  deletedAt    DateTime?
+  appearance   CharacterAppearance?
+  inventory    InventoryItem[]
+  saveOps      SaveOperation[]
+
+  @@index([userId])
+}
+
+// Ngoại hình: CHỈ cosmetic (không ảnh hưởng chỉ số — xem src/sim/dog_archetype.hpp).
+model CharacterAppearance {
+  characterId String       @id @db.Uuid
+  character   DogCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  coatColor   Int          @default(0)
+  sizeVariant Float        @default(1.0)
+  collar      String?
+}
+
+model InventoryItem {
+  id          String       @id @default(uuid()) @db.Uuid
+  characterId String       @db.Uuid
+  character   DogCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  slot        Int
+  itemId      String
+  quantity    Int
+
+  @@unique([characterId, slot])
+}
+
+// Idempotency cho lưu trạng thái: cùng (nhân vật, key) chỉ áp dụng một lần (game server gửi lại khi timeout).
+model SaveOperation {
+  id             String       @id @default(uuid()) @db.Uuid
+  characterId    String       @db.Uuid
+  character      DogCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  idempotencyKey String
+  resultVersion  Int
+  appliedAt      DateTime     @default(now())
+  serverId       String
+
+  @@unique([characterId, idempotencyKey])
+}
+
+model ServerInstance {
+  id              String        @id
+  region          String
+  address         String
+  port            Int
+  capacity        Int
+  currentPlayers  Int           @default(0)
+  status          ServerStatus  @default(ONLINE)
+  buildVersion    String
+  lastHeartbeatAt DateTime      @default(now())
+  sessions        GameSession[]
+}
+
+model GameSession {
+  id          String         @id @default(uuid()) @db.Uuid
+  userId      String         @db.Uuid
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characterId String         @db.Uuid
+  serverId    String
+  server      ServerInstance @relation(fields: [serverId], references: [id])
+  ticketJti   String         @unique
+  startedAt   DateTime       @default(now())
+  endedAt     DateTime?
+  endReason   String?
+
+  @@index([userId])
+}
+
+// Bản ghi ticket đã cấp (jti một lần; game server cũng có replay cache riêng).
+model SessionTicket {
+  jti         String    @id
+  userId      String    @db.Uuid
+  characterId String    @db.Uuid
+  serverId    String
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  consumedAt  DateTime?
+}
+
+// Nhật ký kiểm toán: chỉ thêm. Không chứa mật khẩu/token.
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  actorType String
+  actorId   String?
+  action    String
+  target    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([action])
+}

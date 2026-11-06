@@ -10,8 +10,10 @@
 
 #include <enet/enet.h>
 #include <glm/geometric.hpp>
+#include <nlohmann/json.hpp>
 
 #include "core/log.hpp"
+#include "core/version.hpp"
 #include "sim/dog_archetype.hpp"
 #include "world/world_io.hpp"
 
@@ -118,6 +120,17 @@ bool GameServer::init(std::string& error) {
   if (netsim_.active())
     log::warn("server", "MÔ PHỎNG MẠNG XẤU: mất {:.0f}% trễ {:.0f}±{:.0f} ms (chỉ dùng để test)", cfg_.netsim.loss * 100,
               cfg_.netsim.latency_ms, cfg_.netsim.jitter_ms);
+  if (!cfg_.backend_url.empty()) {
+    std::string berr;
+    if (!backend_.start(cfg_.backend_url, cfg_.service_token, berr)) {
+      error = "backend: " + berr;
+      return false;
+    }
+    log::info("server", "Backend: {} (lưu trạng thái mỗi {:.0f} s, heartbeat mỗi {:.0f} s)", cfg_.backend_url,
+              cfg_.autosave_interval_s, cfg_.heartbeat_interval_s);
+  } else {
+    log::warn("server", "KHÔNG có Backend (--backend): chế độ DEV, trạng thái nhân vật không được lưu");
+  }
   return true;
 }
 
@@ -244,17 +257,30 @@ void GameServer::handle_hello(Conn& c, const net::Hello& h) {
     glm::vec2 sp = spawn_ + glm::vec2(static_cast<float>(np.id % 5) - 2.0f, static_cast<float>(np.id / 5 % 5) - 2.0f);
     col_->resolve(sp, 0.5f, world_.height_at(sp.x, sp.y), 0.3f);
     np.motor.pos = {sp.x, world_.height_at(sp.x, sp.y), sp.y};
+    np.jti = claims.jti;
     p = &players_.emplace(np.id, std::move(np)).first->second;
     log::info("server", "người chơi #{} (user {} nhân vật {}) vào game", p->id, p->user_id, p->char_id);
+    if (backend_.enabled()) {  // nạp trạng thái đã lưu; Welcome gửi khi có kết quả
+      p->loaded = false;
+      backend_.submit({BackendJob::Load, p->id, p->char_id, "GET", std::format("/internal/characters/{}/state", p->char_id), ""});
+    }
   } else {
     log::info("server", "người chơi #{} kết nối lại", p->id);
+    if (p->jti != claims.jti) {
+      end_session(p->jti, "reconnect");
+      p->jti = claims.jti;
+    }
   }
   p->peer = c.peer;
   p->online = true;
   p->inputs.clear();
   p->have_seq = false;
   c.player = p->id;
-  send(c.peer, net::PacketType::Welcome, net::write(net::Welcome{p->id, p->id, static_cast<uint32_t>(tick_), 30}), true);
+  if (p->loaded) welcome(*p);
+}
+
+void GameServer::welcome(Player& p) {
+  send(p.peer, net::PacketType::Welcome, net::write(net::Welcome{p.id, p.id, static_cast<uint32_t>(tick_), 30}), true);
 }
 
 void GameServer::tick_player(Player& p, double dt) {
@@ -363,16 +389,26 @@ void GameServer::tick(double dt) {
   std::vector<sim::PlayerView> views;
   std::vector<glm::vec3> positions;
   for (auto& [id, p] : players_) {
-    if (!p.online) continue;
+    if (!p.online || !p.loaded) continue;
     tick_player(p, dt);
     views.push_back({p.id, p.motor.pos, p.motor.yaw, &p.sv, &p.cb});
     positions.push_back(p.motor.pos);
   }
-  // Người chơi rớt mạng quá thời gian giữ chỗ -> gỡ (Phase 11: lưu về Backend trước khi gỡ)
-  std::erase_if(players_, [&](const auto& kv) {
-    const bool gone = !kv.second.online && now_ - kv.second.offline_since > cfg_.linger_s;
-    if (gone) log::info("server", "gỡ người chơi #{} (rớt mạng quá {:.0f} s)", kv.first, cfg_.linger_s);
-    return gone;
+  // Người chơi rớt mạng quá thời gian giữ chỗ -> lưu về Backend (nếu có) rồi mới gỡ
+  std::erase_if(players_, [&](auto& kv) {
+    Player& p = kv.second;
+    if (p.online || now_ - p.offline_since <= cfg_.linger_s) return false;
+    if (backend_.enabled() && p.loaded && !p.save_conflict) {
+      if (p.save_in_flight) return false;  // chờ lần lưu đang chạy xong rồi lưu lần cuối
+      if (!p.final_save_sent) {
+        request_save(p, "logout");
+        p.final_save_sent = true;
+        return false;
+      }
+    }
+    end_session(p.jti, "disconnect");
+    log::info("server", "gỡ người chơi #{} (rớt mạng quá {:.0f} s)", kv.first, cfg_.linger_s);
+    return true;
   });
   npcs_->set_human_density(wsim_->pedestrian_density());
   const auto events = npcs_->update(static_cast<float>(dt), views, noises_);
@@ -394,7 +430,7 @@ void GameServer::tick(double dt) {
 void GameServer::send_snapshots() {
   const double interval = 1.0 / cfg_.snapshot_hz;
   for (auto& [id, p] : players_) {
-    if (!p.online || now_ < p.next_snapshot) continue;
+    if (!p.online || !p.loaded || now_ < p.next_snapshot) continue;
     // Cộng dồn (không phải now + interval) để đạt đúng 20 Hz trung bình dù tick là 30 Hz.
     p.next_snapshot = std::max(p.next_snapshot + interval, now_ - interval);
     const bool full = (++p.snap_count % 2) == 0;  // entity xa (> 25 m) chỉ gửi mỗi snapshot thứ hai = 10 Hz
@@ -417,7 +453,7 @@ void GameServer::send_snapshots() {
                            static_cast<uint8_t>(m.gait), u8clamp(hp)}});
     };
     for (auto& [oid, o] : players_)
-      if (o.online)
+      if (o.online && o.loaded)
         add(oid, net::kPlayer, static_cast<uint8_t>((o.sv.life == sim::LifeState::Alive) | (o.sprinting << 1) | (oid == p.id ? 32 : 0)),
             o.motor, o.sv.hp);
     for (const auto& n : npcs_->npcs())
@@ -534,6 +570,13 @@ int GameServer::run(std::atomic<bool>& stop) {
       }
       for (const auto& c : pending) command(c);
     }
+    if (backend_.enabled()) {
+      backend_pump();
+      if (now_ >= next_heartbeat_) {
+        send_heartbeat(false);
+        next_heartbeat_ = now_ + cfg_.heartbeat_interval_s;
+      }
+    }
     netsim_.pump(now_);
     enet_host_flush(host_);
     if (now_ >= next_metrics_) {
@@ -542,8 +585,176 @@ int GameServer::run(std::atomic<bool>& stop) {
     }
   }
   log_metrics(true);
+  if (backend_.enabled()) shutdown_persist();
   log::info("server", "dừng sau {} tick", tick_);
   return 0;
+}
+
+// ============================================================================ Backend (Phase 11)
+std::string GameServer::state_json(const Player& p) const {
+  nlohmann::json inv = nlohmann::json::parse(p.inv.to_json())["slots"];
+  return nlohmann::json{{"v", 1},
+                        {"pos", {{"x", p.motor.pos.x}, {"y", p.motor.pos.y}, {"z", p.motor.pos.z}}},
+                        {"yaw", p.motor.yaw},
+                        {"vitals",
+                         {{"hp", std::clamp(p.sv.hp, 0.0f, 100.0f)},
+                          {"hunger", std::clamp(p.sv.hunger, 0.0f, 100.0f)},
+                          {"thirst", std::clamp(p.sv.thirst, 0.0f, 100.0f)},
+                          {"stamina", std::clamp(p.sv.stamina, 0.0f, 100.0f)},
+                          {"rest", std::clamp(p.sv.rest, 0.0f, 100.0f)}}},
+                        {"inventory", inv}}
+      .dump();
+}
+
+void GameServer::request_save(Player& p, const char* reason) {
+  if (!backend_.enabled() || !p.loaded || p.save_in_flight || p.save_conflict) return;
+  // Khóa idempotency gắn với (server, nhân vật, version gốc, lượt lưu): gửi lại do mất mạng không ghi lặp
+  const std::string key = std::format("{}:{}:{}:{}", cfg_.server_id, p.char_id, p.state_version, ++p.save_seq);
+  const nlohmann::json body{{"expectedVersion", p.state_version},
+                            {"idempotencyKey", key},
+                            {"serverId", cfg_.server_id},
+                            {"state", nlohmann::json::parse(state_json(p))}};
+  p.save_in_flight = true;
+  p.next_save = now_ + cfg_.autosave_interval_s;
+  backend_.submit({BackendJob::Save, p.id, p.char_id, "PUT", std::format("/internal/characters/{}/state", p.char_id), body.dump()});
+  log::debug("backend", "lưu nhân vật {} ({}) v{}", p.char_id, reason, p.state_version);
+}
+
+void GameServer::end_session(const std::string& jti, const char* reason) {
+  if (!backend_.enabled() || jti.empty()) return;
+  backend_.submit({BackendJob::EndSession, 0, 0, "POST", "/internal/sessions/" + jti + "/end", nlohmann::json{{"reason", reason}}.dump()});
+}
+
+void GameServer::send_heartbeat(bool draining) {
+  const nlohmann::json body{{"id", cfg_.server_id},
+                            {"region", cfg_.region},
+                            {"address", cfg_.public_address},
+                            {"port", cfg_.port},
+                            {"capacity", cfg_.max_players},
+                            {"currentPlayers", online_players()},
+                            {"buildVersion", kVersionString},
+                            {"status", draining ? "DRAINING" : "ONLINE"}};
+  backend_.submit({BackendJob::Heartbeat, 0, 0, "POST", "/internal/servers/heartbeat", body.dump()});
+}
+
+void GameServer::finish_load(Player& p, const BackendResult& r) {
+  auto fail = [&](const std::string& why) {
+    log::error("backend", "không nạp được nhân vật {}: {}", p.char_id, why);
+    if (p.online && p.peer) kick(p.peer, "không nạp được dữ liệu nhân vật, thử lại sau");
+    p.online = false;
+    p.offline_since = -1e18;  // gỡ ở tick kế (loaded=false -> không lưu đè dữ liệu thật)
+    p.peer = nullptr;
+  };
+  if (r.status != 200) return fail(r.status == 0 ? r.error : std::format("HTTP {}", r.status));
+  const auto j = nlohmann::json::parse(r.body, nullptr, false);
+  if (j.is_discarded() || !j.contains("stateVersion") || !j["stateVersion"].is_number_integer()) return fail("phản hồi sai định dạng");
+  p.state_version = j["stateVersion"].get<int>();
+  const nlohmann::json st = j.contains("state") && j["state"].is_object() ? j["state"] : nlohmann::json::object();
+  // Không tin mù dữ liệu đã lưu: kẹp chỉ số, kiểm tra vị trí trong world, inventory qua validate.
+  if (st.contains("pos") && st["pos"].is_object()) {
+    const float x = st["pos"].value("x", -1.0f), z = st["pos"].value("z", -1.0f);
+    if (x >= 0 && z >= 0 && x <= world::to_m(world_.size_x) && z <= world::to_m(world_.size_z)) {
+      glm::vec2 sp{x, z};
+      col_->resolve(sp, 0.5f, world_.height_at(sp.x, sp.y), 0.3f);
+      p.motor.pos = {sp.x, world_.height_at(sp.x, sp.y), sp.y};
+      p.motor.yaw = st.value("yaw", 0.0f);
+    } else {
+      log::warn("backend", "nhân vật {}: vị trí đã lưu ngoài world -> về điểm spawn", p.char_id);
+    }
+  }
+  if (st.contains("vitals") && st["vitals"].is_object()) {
+    const auto& v = st["vitals"];
+    auto get = [&](const char* k, float def) { return std::clamp(v.value(k, def), 0.0f, 100.0f); };
+    p.sv.hp = std::max(1.0f, get("hp", 100));  // vào game lại luôn còn sống
+    p.sv.hunger = get("hunger", 100);
+    p.sv.thirst = get("thirst", 100);
+    p.sv.stamina = get("stamina", 100);
+    p.sv.rest = get("rest", 100);
+  }
+  if (st.contains("inventory") && st["inventory"].is_array()) {
+    nlohmann::json slots = st["inventory"];
+    while (slots.size() < static_cast<size_t>(gc_.inventory_slots)) slots.push_back(nullptr);
+    std::string err;
+    if (auto inv = sim::Inventory::from_json(gc_, nlohmann::json{{"version", 1}, {"slots", slots}}.dump(), err))
+      p.inv = std::move(*inv);
+    else
+      log::warn("backend", "nhân vật {}: inventory đã lưu không hợp lệ ({}) -> túi rỗng", p.char_id, err);
+  }
+  p.loaded = true;
+  p.next_save = now_ + cfg_.autosave_interval_s;
+  log::info("backend", "nạp nhân vật {} v{} ({})", p.char_id, p.state_version, st.empty() ? "mới" : "đã lưu");
+  if (p.online && p.peer) welcome(p);
+}
+
+void GameServer::backend_pump() {
+  auto describe = [](const BackendResult& r) { return r.status ? std::format("HTTP {}", r.status) : r.error; };
+  for (auto& r : backend_.poll()) {
+    switch (r.kind) {
+      case BackendJob::Heartbeat:
+        if (r.status != 200) log::warn("backend", "heartbeat lỗi: {}", describe(r));
+        break;
+      case BackendJob::EndSession:
+        if (r.status != 200) log::warn("backend", "kết thúc phiên lỗi: {}", describe(r));
+        break;
+      case BackendJob::Load:
+        if (Player* p = player_by_id(r.player); p && p->char_id == r.char_id && !p->loaded) finish_load(*p, r);
+        break;
+      case BackendJob::Save: {
+        Player* p = player_by_id(r.player);
+        if (!p || p->char_id != r.char_id) {
+          if (r.status != 200) log::error("backend", "lưu nhân vật {} THẤT BẠI sau khi gỡ: {}", r.char_id, describe(r));
+          break;
+        }
+        p->save_in_flight = false;
+        if (r.status == 200) {
+          const auto j = nlohmann::json::parse(r.body, nullptr, false);
+          if (!j.is_discarded() && j.contains("stateVersion") && j["stateVersion"].is_number_integer())
+            p->state_version = j["stateVersion"].get<int>();
+        } else if (r.status == 409) {
+          // Server khác đã ghi -> dừng lưu để không đè dữ liệu; buộc người chơi vào lại để nạp bản mới.
+          p->save_conflict = true;
+          log::error("backend", "nhân vật {}: xung đột stateVersion — dừng lưu, kick để nạp lại", p->char_id);
+          if (p->online && p->peer) kick(p->peer, "dữ liệu nhân vật đã thay đổi ở nơi khác");
+        } else {
+          log::warn("backend", "lưu nhân vật {} lỗi ({} {}) — thử lại sau", p->char_id, describe(r), r.body.substr(0, 200));
+          p->next_save = now_ + 5;
+          p->final_save_sent = false;  // nếu là lượt cuối thì gửi lại
+        }
+        break;
+      }
+    }
+  }
+  for (auto& [id, p] : players_)
+    if (p.online && p.loaded && now_ >= p.next_save) request_save(p, "autosave");
+}
+
+void GameServer::shutdown_persist() {
+  log::info("backend", "đang lưu {} nhân vật trước khi tắt...", players_.size());
+  send_heartbeat(true);
+  const auto deadline = clock_t_::now() + std::chrono::seconds(15);
+  for (;;) {
+    bool busy = false;
+    backend_pump();
+    for (auto& [id, p] : players_) {
+      if (!p.loaded || p.save_conflict) continue;
+      if (p.save_in_flight) {
+        busy = true;
+      } else if (!p.final_save_sent) {
+        request_save(p, "shutdown");
+        p.final_save_sent = true;
+        busy = true;
+      }
+    }
+    if (!busy || clock_t_::now() > deadline) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+  for (auto& [id, p] : players_) end_session(p.jti, "server_shutdown");
+  backend_.stop();
+  backend_pump();
+  size_t unsaved = 0;
+  for (auto& [id, p] : players_) unsaved += p.loaded && !p.save_conflict && (p.save_in_flight || !p.final_save_sent);
+  if (unsaved) log::error("backend", "{} nhân vật CHƯA lưu được khi tắt", unsaved);
+  else log::info("backend", "đã lưu xong");
 }
 
 }  // namespace pb::server

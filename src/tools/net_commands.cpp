@@ -66,7 +66,29 @@ int net_command(std::string_view cmd, const std::vector<std::string_view>& a) {
     std::printf("%s\n", net::sign_ticket(c, sk).c_str());
     return 0;
   }
-  std::fputs("net: lệnh không hợp lệ (keygen | ticket)\n", stderr);
+  if (cmd == "verify-ticket") {  // kiểm tra tương thích ticket do Backend (Node) ký
+    std::ifstream f(std::string(opt(a, "--pk", "config/dev_keys/ticket_pk.b64")));
+    std::string b64;
+    f >> b64;
+    net::PublicKey pk;
+    if (!f || !net::from_base64(b64, pk.data(), pk.size())) {
+      std::fputs("không đọc được public key\n", stderr);
+      return 2;
+    }
+    const auto now =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    net::TicketClaims c;
+    const auto e =
+        net::verify_ticket(std::string(opt(a, "--ticket")), pk, std::string(opt(a, "--server", "dev-1")), now, nullptr, c);
+    if (e != net::TicketError::Ok) {
+      std::printf("INVALID: %s\n", net::to_string(e));
+      return 1;
+    }
+    std::printf("OK user=%llu char=%llu srv=%s exp=%lld\n", static_cast<unsigned long long>(c.user_id),
+                static_cast<unsigned long long>(c.character_id), c.server_id.c_str(), static_cast<long long>(c.expires_at));
+    return 0;
+  }
+  std::fputs("net: lệnh không hợp lệ (keygen | ticket | verify-ticket)\n", stderr);
   return 2;
 }
 

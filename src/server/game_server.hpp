@@ -14,6 +14,7 @@
 #include "net/netsim.hpp"
 #include "net/protocol.hpp"
 #include "net/ticket.hpp"
+#include "server/backend_link.hpp"
 #include "sim/collision.hpp"
 #include "sim/gameplay.hpp"
 #include "sim/nav.hpp"
@@ -42,6 +43,13 @@ struct ServerConfig {
   net::NetSimSettings netsim;  // mô phỏng mạng xấu cho gói gửi đi
   long long max_ticks = -1;
   double metrics_interval_s = 10;
+  // Backend (Phase 11): rỗng = chế độ DEV (không lưu trạng thái). Token lấy từ biến môi trường PAWBOUND_SERVICE_TOKEN.
+  std::string backend_url;
+  std::string service_token;
+  std::string region = "vn";
+  std::string public_address = "127.0.0.1";
+  double heartbeat_interval_s = 10;
+  double autosave_interval_s = 60;
 };
 
 struct Metrics {
@@ -82,6 +90,13 @@ class GameServer {
     uint32_t out_seq = 0;
     double next_snapshot = 0;
     uint64_t snap_count = 0;
+    // Lưu trữ (Backend)
+    std::string jti;
+    bool loaded = true;           // false: đang chờ Backend trả trạng thái -> chưa mô phỏng, chưa Welcome
+    int state_version = 0;
+    bool save_in_flight = false, save_conflict = false, final_save_sent = false;
+    uint32_t save_seq = 0;
+    double next_save = 0;
   };
   struct Conn {
     _ENetPeer* peer = nullptr;
@@ -101,6 +116,15 @@ class GameServer {
   void send_snapshots();
   void log_metrics(bool final);
   void command(const std::string& line);
+  // Backend
+  void backend_pump();
+  void request_save(Player& p, const char* reason);
+  void end_session(const std::string& jti, const char* reason);
+  void send_heartbeat(bool draining);
+  void finish_load(Player& p, const BackendResult& r);
+  void welcome(Player& p);
+  [[nodiscard]] std::string state_json(const Player& p) const;
+  void shutdown_persist();
   Player* player_by_id(uint32_t id);
   Conn* conn(_ENetPeer* peer);
 
@@ -131,6 +155,8 @@ class GameServer {
   glm::vec2 spawn_{0.0f};
   std::mutex cmd_mu_;
   std::deque<std::string> cmds_;
+  BackendLink backend_;
+  double next_heartbeat_ = 0;
 };
 
 }  // namespace pb::server

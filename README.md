@@ -17,7 +17,8 @@ Engine tự viết bằng C++20 + Vulkan 1.3; thế giới sinh hoàn toàn bằ
 | 8 | NPC người + chó, waypoint nav, A*, AI theo tính cách | PASS (chưa navmesh) |
 | 9 | Đồng hồ, ngày/đêm, thời tiết, lịch NPC, sự kiện động, lưu trạng thái | PASS |
 | 10 | Dedicated server authoritative (ENet), ticket Ed25519, bot, load test 2→30 | PARTIAL (Linux chưa build thật; chưa có client prediction) |
-| 11–15 | Xem [phạm vi](docs/phases/phase-00-scope-and-acceptance.md) | Chưa làm |
+| 11 | Backend NestJS + PostgreSQL: auth, nhân vật, matchmaking, ticket, lưu trạng thái từ game server | PASS (chưa deploy) |
+| 12–15 | Xem [phạm vi](docs/phases/phase-00-scope-and-acceptance.md) | Chưa làm |
 
 Báo cáo từng phase: `docs/phases/phase-XX-report.md`.
 
@@ -36,7 +37,7 @@ cd D:\Choi
 Điều khiển: WASD đi, Shift nước rút, Ctrl đi bộ, Space nhảy, E tương tác, G lấy đồ, 1–6 dùng đồ, Z nghỉ, J cắn, K né, F (giữ) đánh hơi, Q/R xoay camera, cuộn chuột zoom, T đổi giờ, F3 debug, F12 chụp màn hình, Esc thoát.
 
 ## Tài liệu
-[Quy tắc dự án](docs/project-rules.md) · [Thiết kế game](docs/architecture/game-design-document.md) · [Kiến trúc](docs/architecture/technical-architecture.md) · [ADR](docs/architecture/adr/) · [Asset & giấy phép](docs/art-pipeline/asset-pipeline.md) · [Dependencies](docs/operations/dependencies.md)
+[Quy tắc dự án](docs/project-rules.md) · [Thiết kế game](docs/architecture/game-design-document.md) · [Kiến trúc](docs/architecture/technical-architecture.md) · [ADR](docs/architecture/adr/) · [Asset & giấy phép](docs/art-pipeline/asset-pipeline.md) · [Dependencies](docs/operations/dependencies.md) · [Backend](docs/backend/backend.md)
 
 ## Ghi công asset
 Fox (prototype): model PixelMannen (CC0), rigging/animation tomkranis (CC-BY 4.0), chuyển đổi glTF @AsoboStudio & @scurest (CC-BY 4.0) — KhronosGroup/glTF-Sample-Assets.

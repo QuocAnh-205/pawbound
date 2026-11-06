@@ -1,6 +1,7 @@
 // PAWBOUND dedicated server — headless, authoritative.
 #include <atomic>
 #include <charconv>
+#include <cstdlib>
 #include <csignal>
 #include <iostream>
 #include <string_view>
@@ -47,16 +48,24 @@ int main(int argc, char** argv) {
     else if (s == "--sim-loss") ok = fnum(next(), cfg.netsim.loss);
     else if (s == "--sim-latency") ok = fnum(next(), cfg.netsim.latency_ms);
     else if (s == "--sim-jitter") ok = fnum(next(), cfg.netsim.jitter_ms);
+    else if (s == "--backend") cfg.backend_url = next();
+    else if (s == "--region") cfg.region = next();
+    else if (s == "--public-address") cfg.public_address = next();
+    else if (s == "--autosave") ok = fnum(next(), cfg.autosave_interval_s) && cfg.autosave_interval_s >= 1;
+    else if (s == "--linger") ok = fnum(next(), cfg.linger_s);
     else if (s == "--no-console") console = false;
     else ok = false;
     if (!ok) {
       pb::log::error("server", "tham số không hợp lệ: {}", s);
       pb::log::error("server", "cách dùng: pawbound_server [--world dir] [--data root] [--port n] [--server-id id] "
                                "[--ticket-pubkey file] [--max-players n] [--metrics file.jsonl] [--ticks n] "
-                               "[--sim-loss 0..1 --sim-latency ms --sim-jitter ms] [--no-console]");
+                               "[--sim-loss 0..1 --sim-latency ms --sim-jitter ms] [--no-console] "
+                               "[--backend http://host:3000/api/v1 --region vn --public-address ip --autosave s --linger s]");
       return 2;
     }
   }
+  // Bí mật chỉ qua biến môi trường (không lộ trong danh sách tiến trình / lịch sử shell)
+  if (const char* t = std::getenv("PAWBOUND_SERVICE_TOKEN")) cfg.service_token = t;
   std::signal(SIGINT, on_signal);
   std::signal(SIGTERM, on_signal);
   pb::log::info("server", "PAWBOUND server v{} (protocol {})", pb::kVersionString, pb::net::kProtocolVersion);
