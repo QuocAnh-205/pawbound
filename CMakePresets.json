@@ -1,0 +1,47 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "PB_BUILD_TESTS": "ON" }
+    },
+    {
+      "name": "win-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "cacheVariables": { "CMAKE_C_COMPILER": "gcc", "CMAKE_CXX_COMPILER": "g++" }
+    },
+    { "name": "win-debug", "inherits": "win-base", "displayName": "Windows Debug (MinGW GCC)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" } },
+    { "name": "win-release", "inherits": "win-base", "displayName": "Windows Release (MinGW GCC)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" } },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "cacheVariables": { "CMAKE_C_COMPILER": "gcc", "CMAKE_CXX_COMPILER": "g++" }
+    },
+    { "name": "linux-server-debug", "inherits": "linux-base", "displayName": "Linux Dedicated Server Debug",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "PB_BUILD_CLIENT": "OFF" } },
+    { "name": "linux-server-release", "inherits": "linux-base", "displayName": "Linux Dedicated Server Release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "PB_BUILD_CLIENT": "OFF" } }
+  ],
+  "buildPresets": [
+    { "name": "win-debug", "configurePreset": "win-debug" },
+    { "name": "win-release", "configurePreset": "win-release" },
+    { "name": "linux-server-debug", "configurePreset": "linux-server-debug" },
+    { "name": "linux-server-release", "configurePreset": "linux-server-release" }
+  ],
+  "testPresets": [
+    { "name": "win-debug", "configurePreset": "win-debug", "output": { "outputOnFailure": true } },
+    { "name": "win-release", "configurePreset": "win-release", "output": { "outputOnFailure": true } },
+    { "name": "linux-server-debug", "configurePreset": "linux-server-debug", "output": { "outputOnFailure": true } },
+    { "name": "linux-server-release", "configurePreset": "linux-server-release", "output": { "outputOnFailure": true } }
+  ]
+}

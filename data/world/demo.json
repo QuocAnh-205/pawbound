@@ -1,0 +1,33 @@
+{
+  // Seed demo cố định cho QA. Đổi bất kỳ giá trị nào -> logical hash đổi.
+  "seed": 20261106,
+  "size_m_x": 512,
+  "size_m_z": 512,
+  "chunk_size_m": 64,
+  "terrain": { "cell_m": 4, "amplitude_m": 2.5, "noise_period_m": 160, "octaves": 3 },
+  "districts": {
+    "seeds": 7,
+    "weights": { "downtown": 25, "residential": 40, "park": 20, "industrial": 15 }
+  },
+  "pvp_zones": { "downtown": "restricted", "residential": "restricted", "park": "safe", "industrial": "contested" },
+  "roads": {
+    "margin_m": 16,
+    "arterial_spacing_m": 160,
+    "arterial_jitter_m": 8,
+    "local_spacing_m": [48, 72],
+    "arterial_half_width_cm": 500,
+    "local_half_width_cm": 350,
+    "path_half_width_cm": 150,
+    "sidewalk_cm": 200
+  },
+  "buildings": { "setback_front_cm": 300, "setback_side_cm": 100, "empty_lot_percent_residential": 15 },
+  "vegetation": { "park_tree_spacing_m": 6, "lamp_spacing_m": 24, "street_tree_spacing_m": 12 },
+  "pois": { "water_per_district": [2, 4], "food_per_district": [3, 6], "shelters": [2, 3], "spawns": 4 },
+  "asset_rules": {
+    "building.downtown": [ { "id": "placeholder:building_tower", "weight": 3 }, { "id": "placeholder:building_shop", "weight": 2 } ],
+    "building.residential": [ { "id": "placeholder:building_house", "weight": 4 }, { "id": "placeholder:building_apartment", "weight": 1 } ],
+    "building.industrial": [ { "id": "placeholder:building_warehouse", "weight": 3 }, { "id": "placeholder:building_factory", "weight": 1 } ],
+    "tree": [ { "id": "placeholder:tree_round", "weight": 3 }, { "id": "placeholder:tree_pine", "weight": 1 } ],
+    "prop": [ { "id": "placeholder:prop", "weight": 1 } ]
+  }
+}

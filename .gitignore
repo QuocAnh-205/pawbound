@@ -1,0 +1,28 @@
+# Build
+/build/
+/out/
+/.deps-cache/
+*.obj
+*.o
+*.exe
+*.dll
+*.pdb
+*.a
+*.lib
+# IDE
+.vs/
+.vscode/
+.idea/
+# Secrets
+.env
+*.pem
+*.key
+# Node
+node_modules/
+
+# Runtime output
+/logs/
+/screenshots/manual.png
+
+# Khóa ký ticket (DEV) — bí mật
+/config/dev_keys/

@@ -1,0 +1,47 @@
+{
+  "format_version": 1,
+  "assets": [
+    {
+      "id": "char_fox_prototype",
+      "path": "prototype/fox/Fox.glb",
+      "type": "character",
+      "quality": "prototype",
+      "source": "https://github.com/KhronosGroup/glTF-Sample-Assets/tree/8f492390ddc7a2ae221a1369ef560589cf8c70fb/Models/Fox",
+      "author": "PixelMannen (model, CC0-1.0); tomkranis (rigging & animation, CC-BY-4.0); @AsoboStudio & @scurest (glTF conversion, CC-BY-4.0)",
+      "license": "CC0-1.0 AND CC-BY-4.0",
+      "scale": 0.0075,
+      "sha256": "d97044e701822bac5a62696459b27d7b375aada5de8574ed4362edbba94771f7",
+      "height_m": 0.6,
+      "tags": [
+        "quadruped",
+        "prototype-player"
+      ],
+      "required_animations": [
+        "Survey",
+        "Walk",
+        "Run"
+      ]
+    },
+    {
+      "id": "char_dog_placeholder",
+      "path": "placeholder/placeholder_dog.glb",
+      "type": "character",
+      "quality": "placeholder",
+      "source": "Sinh bằng code: pawbound asset make-placeholders (src/asset/placeholders.cpp)",
+      "author": "PAWBOUND",
+      "license": "PAWBOUND-Generated",
+      "scale": 1.0,
+      "sha256": "8f00e2d9694bcb4fd48d4161e018e342c7a553cbe3af2072562397e8f687d338",
+      "height_m": 0.8,
+      "tags": [
+        "quadruped",
+        "placeholder"
+      ],
+      "required_animations": [
+        "idle",
+        "walk",
+        "run"
+      ]
+    }
+  ]
+}

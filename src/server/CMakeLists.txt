@@ -1,0 +1,10 @@
+add_library(pb_server STATIC game_server.cpp)
+target_link_libraries(pb_server PUBLIC pb_core pb_world pb_sim pb_net)
+if(WIN32)
+  target_link_libraries(pb_server PUBLIC psapi)
+endif()
+pb_set_warnings(pb_server)
+
+add_executable(pawbound_server main.cpp)
+target_link_libraries(pawbound_server PRIVATE pb_server)
+pb_set_warnings(pawbound_server)

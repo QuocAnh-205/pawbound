@@ -1,0 +1,136 @@
+#pragma once
+// Dedicated server PAWBOUND (authoritative). Headless: không link SDL video/Vulkan.
+// Toàn bộ kết quả gameplay do server tính bằng pb_sim; client chỉ gửi ý định (InputCmd).
+#include <atomic>
+#include <cstdint>
+#include <deque>
+#include <filesystem>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "net/netsim.hpp"
+#include "net/protocol.hpp"
+#include "net/ticket.hpp"
+#include "sim/collision.hpp"
+#include "sim/gameplay.hpp"
+#include "sim/nav.hpp"
+#include "sim/npc.hpp"
+#include "sim/world_sim.hpp"
+#include "world/world_types.hpp"
+
+struct _ENetHost;
+struct _ENetPeer;
+
+namespace pb::server {
+
+struct ServerConfig {
+  uint16_t port = net::kDefaultPort;
+  int max_players = 32;
+  std::string server_id = "dev-1";
+  std::filesystem::path world_dir = "out/world_demo";
+  std::filesystem::path data_root = ".";
+  std::filesystem::path ticket_pubkey = "config/dev_keys/ticket_pk.b64";
+  std::filesystem::path metrics_file;  // JSON lines (cho load test); rỗng = tắt
+  int snapshot_hz = 20;
+  double hello_timeout_s = 5;
+  double linger_s = 60;  // giữ nhân vật khi rớt mạng để reconnect
+  float aoi_radius_m = 60;
+  int max_violations = 10;
+  net::NetSimSettings netsim;  // mô phỏng mạng xấu cho gói gửi đi
+  long long max_ticks = -1;
+  double metrics_interval_s = 10;
+};
+
+struct Metrics {
+  std::vector<double> tick_ms;
+  uint64_t pkts_in = 0, pkts_out = 0, bytes_in = 0, bytes_out = 0, rejected = 0, kicked = 0, malformed = 0;
+};
+
+class GameServer {
+ public:
+  explicit GameServer(ServerConfig cfg);
+  ~GameServer();
+  bool init(std::string& error);
+  // Chạy tới khi stop = true hoặc đủ max_ticks. Trả exit code.
+  int run(std::atomic<bool>& stop);
+  // Thread-safe: thread console chỉ đẩy lệnh vào hàng đợi; vòng lặp chính xử lý (không truy cập trạng thái chéo thread).
+  void post_command(std::string line);
+  [[nodiscard]] size_t online_players() const;
+
+ private:
+  struct Player {
+    uint32_t id = 0;
+    uint64_t user_id = 0, char_id = 0;
+    _ENetPeer* peer = nullptr;
+    bool online = false;
+    double offline_since = 0;
+    sim::MotorState motor;
+    sim::MovementStats stats;
+    sim::SurvivalState sv;
+    sim::CombatState cb;
+    sim::Inventory inv{6};
+    std::deque<net::InputCmd> inputs;
+    net::InputCmd last_cmd;
+    uint32_t last_seq = 0;
+    bool have_seq = false;
+    uint16_t prev_buttons = 0;
+    int starved_ticks = 0;
+    bool sprinting = false, resting = false;
+    uint32_t out_seq = 0;
+    double next_snapshot = 0;
+    uint64_t snap_count = 0;
+  };
+  struct Conn {
+    _ENetPeer* peer = nullptr;
+    double connected_at = 0;
+    uint32_t player = 0;  // 0 = chưa xác thực
+    float violations = 0;
+    net::TokenBucket pkts{150, 90}, bytes{64000, 32000};
+  };
+
+  void on_receive(_ENetPeer* peer, const uint8_t* data, size_t len);
+  void handle_hello(Conn& c, const net::Hello& h);
+  void violation(Conn& c, float amount, const char* why);
+  void kick(_ENetPeer* peer, const std::string& reason);
+  void send(_ENetPeer* peer, net::PacketType t, const std::vector<uint8_t>& payload, bool reliable, uint32_t seq = 0);
+  void tick(double dt);
+  void tick_player(Player& p, double dt);
+  void send_snapshots();
+  void log_metrics(bool final);
+  void command(const std::string& line);
+  Player* player_by_id(uint32_t id);
+  Conn* conn(_ENetPeer* peer);
+
+  ServerConfig cfg_;
+  _ENetHost* host_ = nullptr;
+  world::WorldData world_;
+  std::string world_hash_;
+  sim::GameplayConfig gc_;
+  sim::NpcConfig nc_;
+  sim::WorldSimConfig wc_;
+  std::unique_ptr<sim::CollisionWorld> col_;
+  std::unique_ptr<sim::NavGraph> nav_;
+  std::unique_ptr<sim::NpcManager> npcs_;
+  std::unique_ptr<sim::WorldSim> wsim_;
+  std::vector<sim::ResourceNode> resources_;
+  std::vector<sim::Noise> noises_;
+  sim::MovementStats dog_stats_;
+  net::PublicKey ticket_pk_{};
+  net::ReplayCache replay_;
+  std::unordered_map<uint32_t, Player> players_;
+  std::unordered_map<_ENetPeer*, Conn> conns_;
+  uint32_t next_player_ = 1;
+  uint64_t tick_ = 0;
+  double now_ = 0, sim_time_ = 0;
+  Metrics metrics_;
+  double next_metrics_ = 0;
+  net::NetSim netsim_;
+  glm::vec2 spawn_{0.0f};
+  std::mutex cmd_mu_;
+  std::deque<std::string> cmds_;
+};
+
+}  // namespace pb::server

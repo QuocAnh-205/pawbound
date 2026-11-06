@@ -1,0 +1,20 @@
+{
+  // Tên phím theo SDL (SDL_GetScancodeFromName). Mỗi hành động có thể gán nhiều phím.
+  "gamepad_deadzone": 0.2,
+  "bindings": {
+    "move_forward": ["W", "Up"],
+    "move_back": ["S", "Down"],
+    "move_left": ["A", "Left"],
+    "move_right": ["D", "Right"],
+    "sprint": ["Left Shift"],
+    "walk": ["Left Ctrl"],
+    "jump": ["Space"],
+    "interact": ["E"],
+    "attack": ["J"],
+    "dodge": ["K"],
+    "sniff": ["F"],
+    "camera_left": ["Q"],
+    "camera_right": ["R"],
+    "toggle_debug": ["F3"]
+  }
+}
