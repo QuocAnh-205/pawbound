@@ -28,18 +28,28 @@ enum ServerStatus {
 }
 
 model User {
-  id            String         @id @default(uuid()) @db.Uuid
-  numericId     BigInt         @unique @default(autoincrement())
-  email         String         @unique
-  passwordHash  String
-  status        UserStatus     @default(ACTIVE)
-  role          Role           @default(PLAYER)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  profile       PlayerProfile?
-  characters    DogCharacter[]
-  refreshTokens RefreshToken[]
-  sessions      GameSession[]
+  id             String         @id @default(uuid()) @db.Uuid
+  numericId      BigInt         @unique @default(autoincrement())
+  email          String         @unique
+  passwordHash   String
+  status         UserStatus     @default(ACTIVE)
+  role           Role           @default(PLAYER)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  profile        PlayerProfile?
+  characters     DogCharacter[]
+  refreshTokens  RefreshToken[]
+  sessions       GameSession[]
+  // Phase 12
+  chatMutedUntil DateTime?
+  friendsOut     Friendship[]   @relation("FriendRequester")
+  friendsIn      Friendship[]   @relation("FriendAddressee")
+  blocking       UserBlock[]    @relation("Blocker")
+  blockedBy      UserBlock[]    @relation("Blocked")
+  partyMember    PartyMember?
+  guildMember    GuildMember?
+  chatMessages   ChatMessage[]
+  notifications  Notification[]
 }
 
 // Refresh token chỉ lưu HASH (SHA-256), không lưu bản gốc. familyId: chuỗi xoay vòng; dùng lại token đã xoay -> thu hồi cả họ.
@@ -172,4 +182,164 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([action])
+}
+
+// ============================================================================ Phase 12 — Xã hội
+// Backend là nguồn sự thật cho quan hệ/thành viên/quyền. Client chỉ hiển thị.
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+}
+
+// Một hàng cho mỗi CẶP người dùng (pairKey = hai id sắp xếp) -> A gửi B và B gửi A đồng thời không tạo hai quan hệ.
+model Friendship {
+  id          String       @id @default(uuid()) @db.Uuid
+  pairKey     String       @unique
+  requesterId String       @db.Uuid
+  requester   User         @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String       @db.Uuid
+  addressee   User         @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      FriendStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  respondedAt DateTime?
+  expiresAt   DateTime
+
+  @@index([requesterId])
+  @@index([addresseeId])
+}
+
+model UserBlock {
+  blockerId String   @db.Uuid
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String   @db.Uuid
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+// Party/đàn tạm thời: đi cùng nhau, matchmaking xếp chung server.
+model Party {
+  id        String        @id @default(uuid()) @db.Uuid
+  leaderId  String        @db.Uuid
+  createdAt DateTime      @default(now())
+  members   PartyMember[]
+  invites   PartyInvite[]
+}
+
+model PartyMember {
+  userId   String   @id @db.Uuid // mỗi người tối đa một party (khóa chính)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partyId  String   @db.Uuid
+  party    Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@index([partyId])
+}
+
+// Chỉ một lời mời PENDING cho mỗi (party, người) — index một phần thêm bằng SQL trong migration.
+model PartyInvite {
+  id          String       @id @default(uuid()) @db.Uuid
+  partyId     String       @db.Uuid
+  party       Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  inviterId   String       @db.Uuid
+  inviteeId   String       @db.Uuid
+  status      InviteStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  expiresAt   DateTime
+  respondedAt DateTime?
+
+  @@index([inviteeId])
+}
+
+enum GuildRole {
+  OWNER
+  OFFICER
+  MEMBER
+}
+
+enum GuildRequestKind {
+  INVITE // bang mời người chơi
+  JOIN // người chơi xin vào
+}
+
+model Guild {
+  id          String         @id @default(uuid()) @db.Uuid
+  name        String
+  // Tên chuẩn hóa (chữ thường, gộp khoảng trắng) UNIQUE -> hai request tạo cùng tên đồng thời: DB chặn một cái.
+  // Đặt NULL khi giải tán để tên được dùng lại.
+  nameKey     String?        @unique
+  description String         @default("")
+  emblem      Int            @default(0)
+  ownerId     String         @db.Uuid
+  memberLimit Int
+  createdAt   DateTime       @default(now())
+  disbandedAt DateTime?
+  members     GuildMember[]
+  requests    GuildRequest[]
+}
+
+model GuildMember {
+  userId   String    @id @db.Uuid // mỗi người tối đa một bang
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guildId  String    @db.Uuid
+  guild    Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  role     GuildRole @default(MEMBER)
+  joinedAt DateTime  @default(now())
+
+  @@index([guildId])
+}
+
+model GuildRequest {
+  id          String           @id @default(uuid()) @db.Uuid
+  guildId     String           @db.Uuid
+  guild       Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId      String           @db.Uuid // người được mời / người xin vào
+  actorId     String           @db.Uuid // người tạo yêu cầu
+  kind        GuildRequestKind
+  status      InviteStatus     @default(PENDING)
+  createdAt   DateTime         @default(now())
+  expiresAt   DateTime
+  respondedAt DateTime?
+
+  @@index([userId])
+  @@index([guildId, status])
+}
+
+// Chat xã hội (global/party/guild). Chat gần (local) đi qua game server, không lưu.
+model ChatMessage {
+  id        BigInt   @id @default(autoincrement())
+  channel   String // "global" | "party:<id>" | "guild:<id>"
+  senderId  String   @db.Uuid
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([channel, id])
+  @@index([senderId, createdAt])
+}
+
+// Thông báo/lời mời: dedupeKey chống tạo trùng (gửi lại request, double click).
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  payload   Json
+  dedupeKey String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  readAt    DateTime?
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, createdAt])
 }

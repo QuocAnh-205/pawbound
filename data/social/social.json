@@ -1,0 +1,20 @@
+{
+  "friends": { "max": 100, "request_ttl_s": 1209600 },
+  "party": { "max_members": 4, "invite_ttl_s": 300 },
+  "guild": {
+    "member_limit": 20,
+    "invite_ttl_s": 604800,
+    "name_min": 3,
+    "name_max": 24,
+    "description_max": 200,
+    "emblem_count": 16
+  },
+  "chat": {
+    "max_length": 200,
+    "rate_window_s": 10,
+    "rate_max_messages": 5,
+    "history_limit": 50,
+    "banned_words": ["fuck", "shit", "địt", "đụ", "vcl", "đmm"]
+  },
+  "notifications": { "ttl_s": 604800, "max_list": 100 }
+}

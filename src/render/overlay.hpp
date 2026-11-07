@@ -1,6 +1,7 @@
 #pragma once
 // Lớp vẽ 2D (HUD, debug): hình chữ nhật màu + chữ bitmap (stb_easy_font, chỉ ASCII).
 // Chỉ thu thập đỉnh; renderer vẽ sau tonemap với alpha blend. Tọa độ pixel, gốc trên-trái.
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -20,9 +21,10 @@ class Overlay {
   void rect(float x, float y, float w, float h, const glm::vec4& color);
   // Thanh tiến độ có viền.
   void bar(float x, float y, float w, float h, float fraction, const glm::vec4& fill, const glm::vec4& back);
-  // Chữ ASCII (ký tự ngoài ASCII bị thay bằng '?'). scale: hệ số phóng (font gốc cao ~7 px).
+  // Chữ ASCII; tiếng Việt được bỏ dấu, ký tự khác -> '?'. scale: hệ số phóng (font gốc cao ~7 px).
   void text(float x, float y, std::string_view s, const glm::vec4& color, float scale = 2.0f);
   [[nodiscard]] static float text_width(std::string_view s, float scale = 2.0f);
+  [[nodiscard]] static std::string to_display(std::string_view s);  // chuỗi thực sự được vẽ
   [[nodiscard]] const std::vector<OverlayVertex>& vertices() const { return verts_; }
 
  private:

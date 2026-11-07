@@ -34,6 +34,8 @@ struct FrameEvents {
   float wheel = 0.0f;             // cuộn chuột (dương = lên)
   bool mouse_left_pressed = false;
   bool mouse_right_pressed = false;
+  std::string text;     // UTF-8 gõ được trong frame (chỉ khi đang bật text input)
+  int backspaces = 0;   // số lần Backspace (kể cả giữ phím lặp)
 };
 
 // RAII: khởi tạo SDL video khi tạo, SDL_Quit khi hủy.
@@ -53,6 +55,9 @@ class Platform {
   [[nodiscard]] bool mouse_down(int button) const;
   [[nodiscard]] GamepadSnapshot gamepad() const;
   void drawable_size(int& w, int& h) const;
+  // Bật/tắt nhập văn bản (IME, bàn phím ảo trên điện thoại)
+  void set_text_input(bool on);
+  [[nodiscard]] bool text_input_active() const;
 
  private:
   Platform() = default;

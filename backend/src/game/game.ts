@@ -71,7 +71,18 @@ export class MatchmakingService {
     const ranked = servers
       .filter((s) => s.currentPlayers < s.capacity)
       .sort((a, b) => Number(b.region === dto.region) - Number(a.region === dto.region) || a.currentPlayers / a.capacity - b.currentPlayers / b.capacity);
-    const srv = ranked[0];
+    // Party: nếu đồng đội đang chơi trên một server còn chỗ -> xếp vào đúng server đó (đi cùng nhau)
+    let srv = ranked[0];
+    const pm = await this.db.partyMember.findUnique({ where: { userId } });
+    if (pm) {
+      const mates = await this.db.partyMember.findMany({ where: { partyId: pm.partyId, userId: { not: userId } }, select: { userId: true } });
+      const live = await this.db.gameSession.findMany({
+        where: { userId: { in: mates.map((m) => m.userId) }, endedAt: null, startedAt: { gt: new Date(Date.now() - 12 * 3600_000) } },
+        orderBy: { startedAt: 'desc' }, select: { serverId: true },
+      });
+      const withMates = live.map((s) => ranked.find((r) => r.id === s.serverId)).find((r) => r !== undefined);
+      if (withMates) srv = withMates;
+    }
     if (!srv) throw new ServiceUnavailableException({ code: 'NO_SERVER_AVAILABLE', message: 'Hiện không có server trống, thử lại sau' });
     const { ticket, claims } = this.tickets.issue(user.numericId, ch.numericId, srv.id);
     await this.db.$transaction([
@@ -133,7 +144,27 @@ export class InternalController {
   @Get('characters/:numericId/state')
   async load(@Param('numericId') numericId: string) {
     const c = await this.byNumeric(numericId);
-    return { characterId: c.id, numericId, breedId: c.breedId, name: c.name, state: c.state, stateVersion: c.stateVersion };
+    const u = await this.db.user.findUniqueOrThrow({ where: { id: c.userId }, select: { chatMutedUntil: true } });
+    // chatMutedUntil (unix giây): game server dùng cho chat gần; null = không bị cấm
+    const muted = u.chatMutedUntil && u.chatMutedUntil > new Date() ? Math.floor(u.chatMutedUntil.getTime() / 1000) : null;
+    return { characterId: c.id, numericId, breedId: c.breedId, name: c.name, state: c.state, stateVersion: c.stateVersion, chatMutedUntil: muted,
+             blockedUserIds: await this.blockedNumeric(c.userId) };
+  }
+
+  // Người chặn / bị chặn (cả hai chiều), dạng id số — game server lọc chat gần.
+  private async blockedNumeric(userId: string) {
+    const bs = await this.db.userBlock.findMany({ where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+                                                  include: { blocker: { select: { numericId: true } }, blocked: { select: { numericId: true } } } });
+    return bs.map((b) => (b.blockerId === userId ? b.blocked.numericId : b.blocker.numericId).toString());
+  }
+
+  @Get('users/:numericId/blocks')
+  async blocks(@Param('numericId') numericId: string) {
+    if (!/^\d{1,18}$/.test(numericId)) throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'Không tìm thấy' });
+    const u = await this.db.user.findUnique({ where: { numericId: BigInt(numericId) }, select: { id: true, chatMutedUntil: true } });
+    if (!u) throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'Không tìm thấy' });
+    const muted = u.chatMutedUntil && u.chatMutedUntil > new Date() ? Math.floor(u.chatMutedUntil.getTime() / 1000) : null;
+    return { blockedUserIds: await this.blockedNumeric(u.id), chatMutedUntil: muted };
   }
 
   // Lưu trạng thái: idempotent theo key; optimistic concurrency theo stateVersion (409 nếu server khác đã ghi trước).

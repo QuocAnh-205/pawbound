@@ -14,6 +14,13 @@ import { APP_ENV, AppEnv, loadEnv } from './config/env';
 import { InternalController, MatchmakingController, MatchmakingService } from './game/game';
 import { PrismaService } from './prisma/prisma.service';
 import { TicketService } from './tickets/ticket.service';
+import { ChatController, ChatService } from './social/chat';
+import { FriendsController, FriendsService } from './social/friends';
+import { GuildController, GuildService } from './social/guild';
+import { ModerationService } from './social/moderation';
+import { NotificationsController, NotificationsService } from './social/notifications';
+import { PartyController, PartyService } from './social/party';
+import { loadSocialConfig, SOCIAL } from './social/social.config';
 
 @Controller({ path: 'health', version: '1' })
 class HealthController {
@@ -37,11 +44,14 @@ export function buildModule(env: AppEnv) {
   @Module({
     imports: [
       JwtModule.register({ secret: env.jwtSecret, signOptions: { algorithm: 'HS256' }, verifyOptions: { algorithms: ['HS256'] } }),
-      ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
+      ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: Number(process.env.THROTTLE_DEFAULT_PER_MIN ?? 120) }]),
     ],
-    controllers: [HealthController, AuthController, MeController, CharactersController, MatchmakingController, InternalController, AdminController],
+    controllers: [HealthController, AuthController, MeController, CharactersController, MatchmakingController, InternalController, AdminController,
+                  FriendsController, PartyController, GuildController, ChatController, NotificationsController],
     providers: [
       { provide: APP_ENV, useValue: env },
+      { provide: SOCIAL, useValue: loadSocialConfig() },
+      NotificationsService, FriendsService, PartyService, GuildService, ChatService, ModerationService,
       { provide: APP_GUARD, useClass: ThrottlerGuard },
       PrismaService, AuditService, AuthService, CharactersService, TicketService, MatchmakingService,
       JwtAuthGuard, RolesGuard, ServiceTokenGuard,

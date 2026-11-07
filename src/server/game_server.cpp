@@ -1,6 +1,7 @@
 #include "server/game_server.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <format>
@@ -98,6 +99,13 @@ bool GameServer::init(std::string& error) {
     return false;
   }
   dog_stats_ = sim::movement_for(cat, cat.breeds.front());
+  {  // Từ cấm cho chat gần — cùng nguồn với Backend
+    std::ifstream sf(cfg_.data_root / "data/social/social.json");
+    const auto sj = nlohmann::json::parse(sf, nullptr, false);
+    if (!sj.is_discarded() && sj.contains("chat") && sj["chat"].contains("banned_words"))
+      for (const auto& w : sj["chat"]["banned_words"])
+        if (w.is_string() && !w.get<std::string>().empty()) banned_words_.push_back(w.get<std::string>());
+  }
   col_ = std::make_unique<sim::CollisionWorld>(world_);
   nav_ = std::make_unique<sim::NavGraph>(world_);
   resources_ = sim::make_resource_nodes(world_, gc_);
@@ -219,6 +227,16 @@ void GameServer::on_receive(ENetPeer* peer, const uint8_t* data, size_t len) {
         p->inputs.push_back(*it);
       }
       while (p->inputs.size() > 8) p->inputs.pop_front();  // client gửi quá nhanh: bỏ lệnh cũ
+      break;
+    }
+    case net::PacketType::ChatSay: {
+      net::ChatSay m;
+      if (!net::read(pl, m)) {
+        metrics_.malformed++;
+        violation(*c, 1, "chat");
+        return;
+      }
+      if (p->loaded) handle_chat(*p, *c, m);
       break;
     }
     case net::PacketType::Ping: send(peer, net::PacketType::Pong, {}, false, h.sequence); break;
@@ -507,8 +525,24 @@ void GameServer::command(const std::string& line) {
     uint32_t id = 0;
     is >> id;
     if (Player* p = player_by_id(id); p && p->online) kick(p->peer, "bị quản trị viên kick");
+  } else if (cmd == "tp") {  // quản trị: dịch chuyển người chơi (hỗ trợ/kiểm thử)
+    uint32_t id = 0;
+    float x = 0, z = 0;
+    is >> id >> x >> z;
+    Player* p = player_by_id(id);
+    if (!p || !is || x < 0 || z < 0 || x > world::to_m(world_.size_x) || z > world::to_m(world_.size_z)) {
+      log::warn("console", "tp: cần 'tp <id> <x> <z>' trong world");
+    } else {
+      glm::vec2 sp{x, z};
+      col_->resolve(sp, 0.5f, world_.height_at(sp.x, sp.y), 0.3f);
+      p->motor.pos = {sp.x, world_.height_at(sp.x, sp.y), sp.y};
+      p->motor.vel = {0, 0};
+      log::info("console", "tp #{} -> ({:.1f}, {:.1f})", id, sp.x, sp.y);
+    }
+  } else if (cmd == "chatstats") {
+    log::info("console", "chat gần đã phát: {}", chat_count_);
   } else if (!cmd.empty()) {
-    log::info("console", "lệnh: status | players | kick <id> | quit");
+    log::info("console", "lệnh: status | players | kick <id> | tp <id> <x> <z> | chatstats | quit");
   }
 }
 
@@ -680,6 +714,7 @@ void GameServer::finish_load(Player& p, const BackendResult& r) {
     else
       log::warn("backend", "nhân vật {}: inventory đã lưu không hợp lệ ({}) -> túi rỗng", p.char_id, err);
   }
+  apply_social(p, r.body);
   p.loaded = true;
   p.next_save = now_ + cfg_.autosave_interval_s;
   log::info("backend", "nạp nhân vật {} v{} ({})", p.char_id, p.state_version, st.empty() ? "mới" : "đã lưu");
@@ -692,6 +727,9 @@ void GameServer::backend_pump() {
     switch (r.kind) {
       case BackendJob::Heartbeat:
         if (r.status != 200) log::warn("backend", "heartbeat lỗi: {}", describe(r));
+        break;
+      case BackendJob::Social:
+        if (Player* p = player_by_id(r.player); p && p->char_id == r.char_id && r.status == 200) apply_social(*p, r.body);
         break;
       case BackendJob::EndSession:
         if (r.status != 200) log::warn("backend", "kết thúc phiên lỗi: {}", describe(r));
@@ -725,7 +763,22 @@ void GameServer::backend_pump() {
     }
   }
   for (auto& [id, p] : players_)
-    if (p.online && p.loaded && now_ >= p.next_save) request_save(p, "autosave");
+    if (p.online && p.loaded && now_ >= p.next_save) {
+      request_save(p, "autosave");
+      // Làm mới danh sách chặn + trạng thái cấm chat cùng nhịp autosave
+      backend_.submit({BackendJob::Social, p.id, p.char_id, "GET", std::format("/internal/users/{}/blocks", p.user_id), ""});
+    }
+}
+
+void GameServer::apply_social(Player& p, const std::string& body) {
+  const auto j = nlohmann::json::parse(body, nullptr, false);
+  if (j.is_discarded()) return;
+  p.chat_muted_until = j.contains("chatMutedUntil") && j["chatMutedUntil"].is_number_integer() ? j["chatMutedUntil"].get<int64_t>() : 0;
+  if (j.contains("blockedUserIds") && j["blockedUserIds"].is_array()) {
+    p.blocked.clear();
+    for (const auto& v : j["blockedUserIds"])
+      if (v.is_string()) p.blocked.insert(std::strtoull(v.get<std::string>().c_str(), nullptr, 10));
+  }
 }
 
 void GameServer::shutdown_persist() {
@@ -755,6 +808,57 @@ void GameServer::shutdown_persist() {
   for (auto& [id, p] : players_) unsaved += p.loaded && !p.save_conflict && (p.save_in_flight || !p.final_save_sent);
   if (unsaved) log::error("backend", "{} nhân vật CHƯA lưu được khi tắt", unsaved);
   else log::info("backend", "đã lưu xong");
+}
+
+// ============================================================================ Chat gần (Phase 12)
+namespace {
+// So khớp không phân biệt hoa/thường cho ASCII; ranh giới từ = không phải chữ/số ASCII và không phải byte UTF-8.
+bool word_char(unsigned char c) { return std::isalnum(c) || c >= 0x80; }
+std::string mask_words(std::string text, const std::vector<std::string>& words) {
+  std::string low = text;
+  for (auto& ch : low) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  for (const auto& w0 : words) {
+    std::string w = w0;
+    for (auto& ch : w) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    for (size_t pos = low.find(w); pos != std::string::npos; pos = low.find(w, pos + 1)) {
+      const bool left = pos == 0 || !word_char(static_cast<unsigned char>(low[pos - 1]));
+      const bool right = pos + w.size() >= low.size() || !word_char(static_cast<unsigned char>(low[pos + w.size()]));
+      if (left && right) {
+        for (size_t k = pos; k < pos + w.size(); ++k) {
+          // giữ đúng ranh giới UTF-8: chỉ đặt '*' ở byte đầu mỗi ký tự, các byte tiếp theo bỏ
+          text[k] = (static_cast<unsigned char>(text[k]) >> 6) == 2 ? '\x01' : '*';
+        }
+      }
+    }
+  }
+  std::erase(text, '\x01');
+  return text;
+}
+}  // namespace
+
+void GameServer::handle_chat(Player& p, Conn& c, const net::ChatSay& m) {
+  const std::string text = net::sanitize_chat(m.text);
+  if (text.empty()) {
+    violation(c, 0.5f, "chat rỗng/UTF-8 sai");
+    return;
+  }
+  if (p.chat_muted_until > unix_now()) {
+    send(p.peer, net::PacketType::Event, net::write(net::EventMsg{30, "chat: ban dang bi cam chat"}), true);
+    return;
+  }
+  if (!p.chat.take(now_)) {
+    send(p.peer, net::PacketType::Event, net::write(net::EventMsg{31, "chat: gui qua nhanh"}), true);
+    violation(c, 0.1f, "chat spam");
+    return;
+  }
+  const net::ChatMsg out{p.id, p.user_id, mask_words(text, banned_words_)};
+  const auto bytes = net::write(out);
+  // Chỉ người chơi trong bán kính nghe thấy (kể cả người gửi để xác nhận). Không log nội dung chat.
+  for (auto& [id, o] : players_)
+    if (o.online && o.loaded && o.peer && glm::distance(xz(o.motor.pos), xz(p.motor.pos)) <= cfg_.local_chat_radius_m &&
+        !o.blocked.contains(p.user_id) && !p.blocked.contains(o.user_id))  // chặn hai chiều: không thấy tin của nhau
+      send(o.peer, net::PacketType::ChatMsg, bytes, true);
+  chat_count_++;
 }
 
 }  // namespace pb::server

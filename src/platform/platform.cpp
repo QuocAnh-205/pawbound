@@ -45,8 +45,13 @@ FrameEvents Platform::pump_events() {
         ev.quit_requested = true;
         break;
       case SDL_EVENT_KEY_DOWN:
-        if (e.key.key == SDLK_ESCAPE) ev.quit_requested = true;
+        // Đang gõ chat: Esc chỉ hủy ô nhập (client xử lý), không thoát game
+        if (e.key.key == SDLK_ESCAPE && !SDL_TextInputActive(window_)) ev.quit_requested = true;
+        if (e.key.key == SDLK_BACKSPACE && SDL_TextInputActive(window_)) ev.backspaces++;
         if (!e.key.repeat) ev.keys_pressed.push_back(static_cast<int>(e.key.key));
+        break;
+      case SDL_EVENT_TEXT_INPUT:
+        if (e.text.text) ev.text += e.text.text;
         break;
       case SDL_EVENT_GAMEPAD_ADDED:
         if (!gamepad_) {
@@ -125,5 +130,11 @@ void Platform::drawable_size(int& w, int& h) const {
   w = h = 0;
   if (window_) SDL_GetWindowSizeInPixels(window_, &w, &h);
 }
+
+void Platform::set_text_input(bool on) {
+  if (on) SDL_StartTextInput(window_);
+  else SDL_StopTextInput(window_);
+}
+bool Platform::text_input_active() const { return SDL_TextInputActive(window_); }
 
 }  // namespace pb::platform

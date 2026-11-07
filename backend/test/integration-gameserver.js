@@ -84,7 +84,8 @@ async function main() {
       '--backend', API, '--linger', '1', '--autosave', '2'], { cwd: REPO, env: { ...process.env, PAWBOUND_SERVICE_TOKEN: fileEnv.INTERNAL_SERVICE_TOKEN } }, 'server');
 
     // Người chơi: đăng ký + tạo chó
-    const reg = await api('POST', '/auth/register', { email: `it${Date.now()}@test.vn`, password: 'mat-khau-dai-123', displayName: 'Tester' });
+    const email = `it${Date.now()}@test.vn`;
+    const reg = await api('POST', '/auth/register', { email, password: 'mat-khau-dai-123', displayName: 'Tester' });
     check(reg.status === 201, `đăng ký (HTTP ${reg.status})`);
     const auth = { Authorization: `Bearer ${reg.body.accessToken}` };
     const ch = await api('POST', '/characters', { name: 'Mực', breedId: 'shiba' }, auth);
@@ -138,10 +139,44 @@ async function main() {
     check(bad.summary?.welcomed === 0 && bad.summary?.rejected === 1, 'ticket nhân vật không tồn tại bị từ chối');
     check(/không nạp được nhân vật 987654: HTTP 404/.test(server.log), 'server ghi log 404 từ Backend');
 
+    // Bị cấm chat ở Backend (admin mute) -> game server cũng chặn chat gần
+    await db.user.update({ where: { email }, data: { chatMutedUntil: new Date(Date.now() + 600_000) } });
+    const jm = await api('POST', '/matchmaking/join', { characterId: ch.body.id, region: 'vn' }, auth);
+    const bm = await runBot(['--ticket', jm.body.ticket, '--duration', '4', '--still', '--chat', 'alo alo']);
+    check(bm.summary?.welcomed === 1 && bm.summary.chat_rx === 0 && /EVENT 0 30 /.test(bm.log), 'người bị mute ở Backend không chat gần được');
+    await db.user.update({ where: { email }, data: { chatMutedUntil: null } });
+    await waitFor(async () => (await db.gameSession.count({ where: { serverId: SERVER_ID, endedAt: null } })) === 0, 10000, 'đóng phiên mute');
+
+    // Chặn (Backend) áp dụng cho chat gần trên game server: B chặn A -> B không nhận tin của A, C (không chặn) vẫn nhận
+    const mk = async (name) => {
+      const r = await api('POST', '/auth/register', { email: `${name}${Date.now()}@test.vn`, password: 'mat-khau-dai-123', displayName: `${name}${Date.now() % 100000}` });
+      const a = { Authorization: `Bearer ${r.body.accessToken}` };
+      const c = await api('POST', '/characters', { name: 'Cun', breedId: 'shiba' }, a);
+      const me = await api('GET', '/me', null, a);
+      return { auth: a, charId: c.body.id, userId: me.body.id };
+    };
+    const ua = await mk('blka'), ub = await mk('blkb'), uc = await mk('blkc');
+    check((await api('POST', '/blocks', { userId: ua.userId }, ub.auth)).status === 201, 'B chặn A qua API');
+    const tk = async (u) => (await api('POST', '/matchmaking/join', { characterId: u.charId, region: 'vn' }, u.auth)).body.ticket;
+    const [ta, tb, tc] = [await tk(ua), await tk(ub), await tk(uc)];
+    const pb = runBot(['--ticket', tb, '--duration', '6', '--still', '--chat', 'b noi', '--chat-delay', '4']);
+    const pc = runBot(['--ticket', tc, '--duration', '6', '--still', '--chat', 'c noi', '--chat-delay', '4']);
+    await sleep(800);
+    const ra = await runBot(['--ticket', ta, '--duration', '7', '--still', '--chat', 'a noi day', '--chat-delay', '1.5']);
+    const [rb, rc] = await Promise.all([pb, pc]);
+    const got = (r, t) => r.log.split(/\r?\n/).filter((l) => l.startsWith('CHAT ') && l.endsWith(t)).length;
+    check(got(ra, 'a noi day') === 1, 'A nhận lại tin của mình');
+    check(got(rc, 'a noi day') === 1, 'C (không chặn) nhận tin của A');
+    check(got(rb, 'a noi day') === 0, 'B (đã chặn A) KHÔNG nhận tin của A');
+    check(got(rb, 'b noi') === 1 && got(rb, 'c noi') === 1, 'B vẫn trong game, nhận tin của mình và của C (kiểm soát)');
+    check(got(ra, 'b noi') === 0 && got(ra, 'c noi') === 1, 'A không nhận tin của B (chặn hai chiều) nhưng nhận tin của C (kiểm soát)');
+    await waitFor(async () => (await db.gameSession.count({ where: { serverId: SERVER_ID, endedAt: null } })) === 0, 10000, 'đóng phiên block');
+
     // Tắt server có người chơi đang online: phải lưu + báo DRAINING
+    const loadsBefore = (server.log.match(/\(đã lưu\)/g) || []).length;
     const j3 = await api('POST', '/matchmaking/join', { characterId: ch.body.id, region: 'vn' }, auth);
     const b3p = runBot(['--ticket', j3.body.ticket, '--duration', '8']);
-    check(await waitFor(async () => /nạp nhân vật \d+ v\d+ \(đã lưu\)[\s\S]*nạp nhân vật \d+ v\d+ \(đã lưu\)/.test(server.log), 8000, 'vào lần 3'), 'vào game lần 3');
+    check(await waitFor(async () => (server.log.match(/\(đã lưu\)/g) || []).length > loadsBefore, 8000, 'vào lần 3'), 'vào game lần 3');
     const before = (await api('GET', `/internal/characters/${numericId}/state`, null, svc)).body.stateVersion;
     server.stdin.write('quit\n');
     const code = await new Promise((r) => server.on('exit', r));

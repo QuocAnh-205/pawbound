@@ -1,4 +1,5 @@
 // PAWBOUND client — điểm vào.
+#include <algorithm>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
@@ -12,6 +13,7 @@
 #include "client/dog_actor.hpp"
 #include "client/game_session.hpp"
 #include "client/net_game.hpp"
+#include "core/text.hpp"
 #include <fstream>
 #include "client/qa_scenario.hpp"
 #include "render/overlay.hpp"
@@ -48,6 +50,7 @@ struct Args {
   std::string scenario;  // "survival" = kịch bản QA tự động
   std::string weather, event;  // ép thời tiết/sự kiện lúc bắt đầu (QA)
   std::string connect, ticket;  // chế độ online: host:port + session ticket (chuỗi hoặc @file)
+  std::string say;              // test: tự gửi một tin chat gần sau khi vào server
   float zoom = 0.0f;      // 0 = mặc định
   float at_x = -1, at_z = -1;  // vị trí bắt đầu (m), -1 = spawn
   bool ok = true;
@@ -58,13 +61,14 @@ bool parse_ll(std::string_view v, long long& out) {
 }
 
 Args parse_args(int argc, char** argv) {
+  static const auto utf8 = pb::utf8_args(argc, argv);  // static: string_view trỏ vào đây phải sống hết chương trình
   Args a;
 #ifndef NDEBUG
   a.validation = true;  // Debug build: bật validation layer mặc định
 #endif
   for (int i = 1; i < argc; ++i) {
-    std::string_view s = argv[i];
-    auto next = [&]() -> std::string_view { return i + 1 < argc ? std::string_view(argv[++i]) : std::string_view(); };
+    std::string_view s = utf8[static_cast<size_t>(i)];
+    auto next = [&]() -> std::string_view { return i + 1 < argc ? std::string_view(utf8[static_cast<size_t>(++i)]) : std::string_view(); };
     if (s == "--config") a.config_path = next();
     else if (s == "--frames") a.ok &= parse_ll(next(), a.max_frames);
     else if (s == "--hidden") a.hidden = true;
@@ -81,6 +85,7 @@ Args parse_args(int argc, char** argv) {
     else if (s == "--weather") a.weather = next();
     else if (s == "--connect") a.connect = next();
     else if (s == "--ticket") a.ticket = next();
+    else if (s == "--say") a.say = next();
     else if (s == "--event") a.event = next();
     else if (s == "--debug") a.debug = true;
     else if (s == "--at") {
@@ -209,13 +214,28 @@ class ClientApp final : public pb::Application {
   }
 
   void on_frame_begin() override {
-    auto ev = platform_->pump_events();
+    auto ev = platform_->pump_events();  // (không const: phần chat có thể "nuốt" phím)
     if (ev.quit_requested) request_quit(0);
     if (ev.resized && renderer_) renderer_->notify_resized();
     minimized_ = ev.minimized || ev.width == 0 || ev.height == 0;
     width_ = ev.width;
     height_ = ev.height;
     aspect_ = ev.height > 0 ? static_cast<float>(ev.width) / static_cast<float>(ev.height) : 1.0f;
+    // Chat gần (online): Enter mở ô nhập / gửi, Esc hủy. Khi đang gõ, phím không điều khiển chó.
+    if (net_) {
+      const auto has = [&](SDL_Keycode k) { return std::find(ev.keys_pressed.begin(), ev.keys_pressed.end(), static_cast<int>(k)) != ev.keys_pressed.end(); };
+      if (net_->typing()) {
+        net_->chat_edit(ev.text, ev.backspaces);
+        if (has(SDLK_RETURN) || has(SDLK_KP_ENTER)) net_->chat_submit();
+        else if (has(SDLK_ESCAPE)) net_->chat_cancel();
+        if (!net_->typing()) platform_->set_text_input(false);
+        ev.keys_pressed.clear();
+      } else if (has(SDLK_RETURN) || has(SDLK_KP_ENTER)) {
+        net_->chat_begin();
+        platform_->set_text_input(true);
+        ev.keys_pressed.clear();
+      }
+    }
     for (int k : ev.keys_pressed) pressed_.insert(SDL_GetKeyName(static_cast<SDL_Keycode>(k)));
     if (ev.mouse_left_pressed) pressed_.insert("__mouse_left");
     for (int k : ev.keys_pressed) {
@@ -278,6 +298,12 @@ class ClientApp final : public pb::Application {
       if (in.rotate_camera_right) camera_.rotate_step(+1);
       if (in.toggle_debug) debug_ = !debug_;
       net_->fixed_update(in, camera_, static_cast<float>(dt));
+      if (!args_.say.empty() && net_->connected() && tick_count() > 60) {  // --say: mở ô chat, gõ, gửi (như người dùng)
+        net_->chat_begin();
+        net_->chat_edit(args_.say, 0);
+        net_->chat_submit();
+        args_.say.clear();
+      }
       if (!net_->connected() && args_.max_frames < 0) request_quit(6);
       return;
     }

@@ -57,6 +57,13 @@ TEST_CASE("net: gói sai bị từ chối an toàn (ngắn, quá cỡ, sai versi
   auto badt = good;
   badt[2] = 200;
   CHECK_FALSE(decode_header(badt, h, pl));
+  badt[2] = static_cast<uint8_t>(PacketType::ChatMsg) + 1;  // ngay sau loại cuối cùng
+  CHECK_FALSE(decode_header(badt, h, pl));
+  // Mọi loại gói đã khai báo đều qua được header (lỗi thật đã gặp: thêm ChatSay nhưng quên nới giới hạn)
+  for (uint16_t t = 1; t <= static_cast<uint16_t>(PacketType::ChatMsg); ++t) {
+    auto ok = encode({kProtocolVersion, static_cast<PacketType>(t), 1, 0, 0}, {});
+    CHECK(decode_header(ok, h, pl));
+  }
   // Input có bit nút lạ hoặc số lệnh sai
   InputPacket ip{{{1, 0, 0, 0, 0}}};
   auto bytes = write(ip);

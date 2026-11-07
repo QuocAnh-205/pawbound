@@ -1,5 +1,7 @@
 #include "render/overlay.hpp"
 
+#include "core/text.hpp"
+
 #include <algorithm>
 #include <string>
 
@@ -28,20 +30,10 @@ void Overlay::bar(float x, float y, float w, float h, float f, const glm::vec4& 
 }
 
 namespace {
-std::string ascii(std::string_view s) {
-  std::string out;
-  for (size_t i = 0; i < s.size(); ++i) {
-    const auto c = static_cast<unsigned char>(s[i]);
-    if (c < 0x80) {
-      out.push_back(static_cast<char>(c));
-    } else {
-      out.push_back('?');
-      while (i + 1 < s.size() && (static_cast<unsigned char>(s[i + 1]) & 0xC0) == 0x80) ++i;  // bỏ byte tiếp của UTF-8
-    }
-  }
-  return out;
-}
+std::string ascii(std::string_view s) { return ascii_fold(s); }
 }  // namespace
+
+std::string Overlay::to_display(std::string_view s) { return ascii(s); }
 
 void Overlay::text(float x, float y, std::string_view s, const glm::vec4& c, float scale) {
   std::string a = ascii(s);

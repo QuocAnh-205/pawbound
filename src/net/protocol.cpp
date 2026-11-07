@@ -66,7 +66,7 @@ bool decode_header(std::span<const uint8_t> pkt, Header& h, std::span<const uint
   uint16_t type = 0;
   if (!r.u16(h.version) || !r.u16(type) || !r.u32(h.sequence) || !r.u32(h.ack) || !r.u32(h.server_tick)) return false;
   if (h.version != kProtocolVersion) return false;
-  if (type < 1 || type > static_cast<uint16_t>(PacketType::Bye)) return false;
+  if (type < 1 || type > static_cast<uint16_t>(PacketType::ChatMsg)) return false;  // cập nhật khi thêm loại gói
   h.type = static_cast<PacketType>(type);
   payload = pkt.subspan(kHeaderSize);
   return true;
@@ -115,6 +115,67 @@ std::vector<uint8_t> write(const EventMsg& m) {
 bool read(std::span<const uint8_t> p, EventMsg& m) {
   Reader r(p);
   return r.u16(m.code) && r.str(m.text, 256) && r.done();
+}
+
+// ---------------------------------------------------------------- Chat
+std::vector<uint8_t> write(const ChatSay& m) {
+  Writer w;
+  w.str(m.text);
+  return w.bytes();
+}
+bool read(std::span<const uint8_t> p, ChatSay& m) {
+  Reader r(p);
+  return r.str(m.text, kMaxChatBytes) && r.done();
+}
+std::vector<uint8_t> write(const ChatMsg& m) {
+  Writer w;
+  w.u32(m.from_entity);
+  w.u32(static_cast<uint32_t>(m.from_user));
+  w.u32(static_cast<uint32_t>(m.from_user >> 32));
+  w.str(m.text);
+  return w.bytes();
+}
+bool read(std::span<const uint8_t> p, ChatMsg& m) {
+  Reader r(p);
+  uint32_t lo = 0, hi = 0;
+  if (!(r.u32(m.from_entity) && r.u32(lo) && r.u32(hi) && r.str(m.text, kMaxChatBytes) && r.done())) return false;
+  m.from_user = (static_cast<uint64_t>(hi) << 32) | lo;
+  return true;
+}
+
+std::string sanitize_chat(std::string_view raw) {
+  std::string out;
+  out.reserve(raw.size());
+  bool space = true;  // bỏ khoảng trắng đầu
+  for (size_t i = 0; i < raw.size();) {
+    const auto c = static_cast<unsigned char>(raw[i]);
+    size_t len = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 0;
+    if (len == 0 || i + len > raw.size()) return {};
+    uint32_t cp = len == 1 ? c : c & (0x7F >> len);
+    for (size_t k = 1; k < len; ++k) {
+      const auto cc = static_cast<unsigned char>(raw[i + k]);
+      if ((cc >> 6) != 2) return {};
+      cp = (cp << 6) | (cc & 0x3F);
+    }
+    // Từ chối mã hóa dài thừa / surrogate / ngoài Unicode
+    if ((len == 2 && cp < 0x80) || (len == 3 && cp < 0x800) || (len == 4 && cp < 0x10000) || cp > 0x10FFFF ||
+        (cp >= 0xD800 && cp <= 0xDFFF))
+      return {};
+    // Ký tự điều khiển C0/C1 và ký tự định dạng hai chiều/vô hình hay dùng để giả mạo hiển thị
+    const bool control = cp < 0x20 || cp == 0x7F || (cp >= 0x80 && cp < 0xA0) || (cp >= 0x200B && cp <= 0x200F) ||
+                         (cp >= 0x202A && cp <= 0x202E) || (cp >= 0x2066 && cp <= 0x2069) || cp == 0xFEFF;
+    if (control || cp == ' ') {
+      if (!space) out += ' ';
+      space = true;
+    } else {
+      out.append(raw.substr(i, len));
+      space = false;
+    }
+    i += len;
+  }
+  while (!out.empty() && out.back() == ' ') out.pop_back();
+  if (out.size() > kMaxChatBytes) return {};
+  return out;
 }
 
 // ---------------------------------------------------------------- Input

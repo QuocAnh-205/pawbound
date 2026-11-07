@@ -81,3 +81,11 @@ if(PB_BUILD_CLIENT)
       ENVIRONMENT "VK_LAYER_PATH=$ENV{VULKAN_SDK}/Bin")
   endif()
 endif()
+
+# Phase 12: chat gần qua game server (bán kính, rate limit, lọc từ, không log nội dung) — không cần GPU.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+  add_test(NAME net_local_chat COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/chat_smoke.py"
+           "${CMAKE_BINARY_DIR}/bin" "${CMAKE_BINARY_DIR}/out/world_demo")
+  set_tests_properties(net_local_chat PROPERTIES DEPENDS world_generate_demo TIMEOUT 120 LABELS "net")
+endif()

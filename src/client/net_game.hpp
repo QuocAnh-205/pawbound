@@ -4,6 +4,7 @@
 #include <deque>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,14 @@ class NetGame {
   [[nodiscard]] float hour() const { return static_cast<float>(self_.hour_x100) / 100.0f; }
   [[nodiscard]] uint8_t weather() const { return self_.weather; }
   [[nodiscard]] std::string status() const;
+  // Chat gần (Enter mở ô nhập, Enter gửi, Esc hủy). Khi đang gõ, input di chuyển bị bỏ qua.
+  void chat_begin() { typing_ = true; draft_.clear(); }
+  void chat_cancel() { typing_ = false; draft_.clear(); }
+  void chat_edit(const std::string& utf8, int backspaces);
+  bool chat_submit();  // false nếu nội dung rỗng/không hợp lệ
+  [[nodiscard]] bool typing() const { return typing_; }
+  // Người chơi đã chặn (id số tài khoản, lấy từ Backend): tin chat gần của họ bị ẩn.
+  void set_blocked_users(std::set<uint64_t> ids) { blocked_ = std::move(ids); }
 
  private:
   struct Timed {
@@ -63,6 +72,10 @@ class NetGame {
   double next_ping_ = 0;
   std::deque<std::pair<double, std::string>> log_;
   std::string reject_;
+  bool typing_ = false;
+  std::string draft_;
+  std::deque<std::pair<double, std::string>> chat_;
+  std::set<uint64_t> blocked_;
 };
 
 }  // namespace pb::client

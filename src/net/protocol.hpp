@@ -20,6 +20,8 @@ inline constexpr int kMaxSnapshotEntities = 50;
 
 enum class PacketType : uint16_t {
   Hello = 1, Welcome = 2, Reject = 3, Input = 4, Snapshot = 5, Event = 6, Ping = 7, Pong = 8, Bye = 9,
+  ChatSay = 10,  // client -> server: chat gần
+  ChatMsg = 11,  // server -> client trong bán kính
 };
 
 struct Header {
@@ -121,6 +123,24 @@ struct EventMsg {
   uint16_t code = 0;
   std::string text;
 };
+
+// Chat gần (local): đi qua game server, KHÔNG lưu. Chat xã hội (global/party/guild) đi qua Backend HTTP.
+inline constexpr size_t kMaxChatBytes = 240;
+struct ChatSay {
+  std::string text;
+};
+struct ChatMsg {
+  uint32_t from_entity = 0;  // id người chơi trong snapshot
+  uint64_t from_user = 0;    // id số của tài khoản (client lọc người mình chặn)
+  std::string text;
+};
+std::vector<uint8_t> write(const ChatSay& m);
+std::vector<uint8_t> write(const ChatMsg& m);
+bool read(std::span<const uint8_t> p, ChatSay& m);
+bool read(std::span<const uint8_t> p, ChatMsg& m);
+// Kiểm tra UTF-8 hợp lệ, thay ký tự điều khiển bằng khoảng trắng, gộp/cắt khoảng trắng.
+// Trả rỗng nếu UTF-8 sai, rỗng sau khi làm sạch hoặc quá kMaxChatBytes.
+std::string sanitize_chat(std::string_view raw);
 
 std::vector<uint8_t> encode(const Header& h, const std::vector<uint8_t>& payload);
 // Tách header + payload; false nếu gói ngắn/quá cỡ/sai version.

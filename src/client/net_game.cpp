@@ -121,6 +121,14 @@ void NetGame::poll() {
           }
           break;
         }
+        case net::PacketType::ChatMsg: {
+          net::ChatMsg m;
+          if (net::read(pl, m) && !blocked_.contains(m.from_user)) {
+            chat_.emplace_back(clock_, std::format("{}#{}: {}", m.from_entity == player_id_ ? "Ban" : "Cho", m.from_entity, m.text));
+            while (chat_.size() > 8) chat_.pop_front();
+          }
+          break;
+        }
         case net::PacketType::Pong:
           if (auto it = pings_.find(h.sequence); it != pings_.end()) {
             rtt_.push_back((clock_ - it->second) * 1000.0);
@@ -140,14 +148,17 @@ void NetGame::fixed_update(const InputState& in, const geom::Camera25D& cam, flo
   poll();
   if (!welcomed_ || lost_) return;
   // Ý định: hướng di chuyển trong không gian thế giới (camera-relative) + nút. KHÔNG gửi vị trí.
-  const glm::vec3 d = cam.ground_right() * in.move.x + cam.ground_forward() * in.move.y;
+  // Đang gõ chat: gửi lệnh "đứng yên" (vẫn gửi để server không coi là mất gói).
+  const InputState idle{};
+  const InputState& inp = typing_ ? idle : in;
+  const glm::vec3 d = cam.ground_right() * inp.move.x + cam.ground_forward() * inp.move.y;
   net::InputCmd c;
   c.seq = ++seq_;
   c.move_x = static_cast<int8_t>(std::clamp(d.x * 127.0f, -127.0f, 127.0f));
   c.move_z = static_cast<int8_t>(std::clamp(d.z * 127.0f, -127.0f, 127.0f));
-  c.buttons = static_cast<uint16_t>((in.sprint ? net::kSprint : 0) | (in.walk ? net::kWalk : 0) | (in.jump ? net::kJump : 0) |
-                                    (in.interact ? net::kInteract : 0) | (in.attack ? net::kAttack : 0) |
-                                    (in.dodge ? net::kDodge : 0) | (in.sniff ? net::kSniff : 0));
+  c.buttons = static_cast<uint16_t>((inp.sprint ? net::kSprint : 0) | (inp.walk ? net::kWalk : 0) | (inp.jump ? net::kJump : 0) |
+                                    (inp.interact ? net::kInteract : 0) | (inp.attack ? net::kAttack : 0) |
+                                    (inp.dodge ? net::kDodge : 0) | (inp.sniff ? net::kSniff : 0));
   recent_.push_front(c);
   while (recent_.size() > 3) recent_.pop_back();
   send(net::PacketType::Input, net::write(net::InputPacket{{recent_.begin(), recent_.end()}}), false);
@@ -254,6 +265,17 @@ void NetGame::draw_hud(render::Overlay& o, int w, int h) const {
   o.text(static_cast<float>(w) - render::Overlay::text_width(st, 1.6f * s) - 19 * s, 16 * s, st,
          connected() ? glm::vec4(0.6f, 1, 0.6f, 1) : glm::vec4(1, 0.4f, 0.3f, 1), 1.6f * s);
   float ly = static_cast<float>(h) - 40 * s;
+  if (typing_) {  // ô nhập chat
+    const std::string line = "Chat: " + render::Overlay::to_display(draft_) + "_";
+    o.rect(10 * s, ly - 6 * s, std::max(320 * s, render::Overlay::text_width(line, 1.6f * s) + 16 * s), 24 * s, {0, 0, 0, 0.7f});
+    o.text(16 * s, ly, line, {1, 1, 1, 1}, 1.6f * s);
+    ly -= 28 * s;
+  }
+  for (auto it = chat_.rbegin(); it != chat_.rend(); ++it) {
+    if (clock_ - it->first > 30 && !typing_) continue;  // tin cũ mờ đi sau 30 s
+    o.text(16 * s, ly, it->second, {0.75f, 0.95f, 1, 1}, 1.6f * s);
+    ly -= 20 * s;
+  }
   for (auto it = log_.rbegin(); it != log_.rend(); ++it) {
     o.text(16 * s, ly, it->second, {1, 1, 0.8f, 1}, 1.6f * s);
     ly -= 20 * s;
@@ -269,6 +291,25 @@ std::string NetGame::status() const {
   return std::format("ONLINE #{} | {} players nearby | RTT {:.0f} ms | {:02d}:{:02d} {}", player_id_, players, rtt,
                      self_.hour_x100 / 100, self_.hour_x100 % 100 * 60 / 100,
                      sim::to_string(static_cast<sim::Weather>(std::min<int>(self_.weather, 4))));
+}
+
+void NetGame::chat_edit(const std::string& utf8, int backspaces) {
+  if (!typing_) return;
+  for (int i = 0; i < backspaces && !draft_.empty(); ++i) {
+    while (!draft_.empty() && (static_cast<unsigned char>(draft_.back()) & 0xC0) == 0x80) draft_.pop_back();  // byte tiếp UTF-8
+    if (!draft_.empty()) draft_.pop_back();
+  }
+  if (draft_.size() + utf8.size() <= net::kMaxChatBytes) draft_ += utf8;
+}
+
+bool NetGame::chat_submit() {
+  typing_ = false;
+  const std::string text = net::sanitize_chat(draft_);
+  draft_.clear();
+  if (text.empty() || !welcomed_ || lost_) return false;
+  send(net::PacketType::ChatSay, net::write(net::ChatSay{text}), true);
+  enet_host_flush(host_);
+  return true;
 }
 
 }  // namespace pb::client

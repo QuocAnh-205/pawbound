@@ -39,6 +39,7 @@ def main():
         time.sleep(2.0)
         r = subprocess.run([exe(bindir, "pawbound_client"), "--world", world, "--connect", "127.0.0.1:" + port,
                             "--ticket", ticket, "--frames", "240", "--validation", "--zoom", "9", "--asset-root", ROOT,
+                            "--say", "Xin chào cả đàn!",
                             "--config", os.path.join(ROOT, "config", "client.json"), "--screenshot", shot],
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
         out = (r.stdout or "") + (r.stderr or "")

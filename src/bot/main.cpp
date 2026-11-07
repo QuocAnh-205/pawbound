@@ -19,6 +19,7 @@
 #include "core/log.hpp"
 #include "net/netsim.hpp"
 #include "net/protocol.hpp"
+#include "core/text.hpp"
 #include "net/ticket.hpp"
 #include "world/world_io.hpp"
 
@@ -32,7 +33,9 @@ struct Bot {
   ENetPeer* peer = nullptr;
   bool connected = false, welcomed = false, rejected = false, disconnected = false;
   uint32_t seq = 0, player_id = 0;
-  uint64_t snapshots = 0, max_seen_players = 0, events = 0;
+  uint64_t snapshots = 0, max_seen_players = 0, events = 0, chat_rx = 0;
+  int chat_sent = 0;
+  double welcomed_at = 0;
   std::vector<double> rtt_ms;
   double next_ping = 0, next_turn = 0;
   std::unordered_map<uint32_t, double> ping_sent;
@@ -55,12 +58,16 @@ double pct(std::vector<double> v, double p) {
 int main(int argc, char** argv) {
   std::string host_name = "127.0.0.1", sk_path = "config/dev_keys/ticket_sk.b64", world_dir = "out/world_demo",
               server_id = "dev-1", out_json, fixed_ticket;  // --ticket: dùng ticket do Backend cấp (chỉ cho --count 1)
-  int count = 2, port = net::kDefaultPort, char_base = 10000;
+  int count = 2, port = net::kDefaultPort, char_base = 10000, chat_count = 1;
+  std::string chat_text;  // --chat: mỗi bot gửi chat gần sau khi vào game (test)
+  bool still = false;     // --still: đứng yên (test chat theo bán kính)
+  double chat_delay = 1.0;
   double duration = 30, ramp = 0.05;
   net::NetSimSettings ns;
+  const auto args = utf8_args(argc, argv);  // UTF-8 (Windows: argv gốc theo mã ANSI làm hỏng chữ tiếng Việt)
   for (int i = 1; i < argc; ++i) {
-    std::string_view s = argv[i];
-    auto next = [&]() -> std::string { return i + 1 < argc ? argv[++i] : ""; };
+    std::string_view s = args[static_cast<size_t>(i)];
+    auto next = [&]() -> std::string { return i + 1 < argc ? args[static_cast<size_t>(++i)] : ""; };
     if (s == "--host") host_name = next();
     else if (s == "--port") port = std::stoi(next());
     else if (s == "--count") count = std::stoi(next());
@@ -75,6 +82,10 @@ int main(int argc, char** argv) {
     else if (s == "--sim-jitter") ns.jitter_ms = std::stod(next());
     else if (s == "--out") out_json = next();
     else if (s == "--ticket") fixed_ticket = next();
+    else if (s == "--chat") chat_text = next();
+    else if (s == "--chat-count") chat_count = std::stoi(next());
+    else if (s == "--still") still = true;
+    else if (s == "--chat-delay") chat_delay = std::stod(next());
     else {
       std::fprintf(stderr, "cách dùng: pawbound_bot [--count n] [--duration s] [--host h] [--port p] [--world dir] [--sk file] "
                            "[--sim-loss 0..1 --sim-latency ms --sim-jitter ms] [--out kết_quả.json]\n");
@@ -157,6 +168,7 @@ int main(int argc, char** argv) {
               if (net::read(pl, w)) {
                 b.welcomed = true;
                 b.player_id = w.player_id;
+                b.welcomed_at = t;
               }
             } else if (h.type == net::PacketType::Reject) {
               b.rejected = true;
@@ -175,6 +187,14 @@ int main(int argc, char** argv) {
               }
             } else if (h.type == net::PacketType::Event) {
               ++b.events;
+              net::EventMsg e;
+              if (!chat_text.empty() && net::read(pl, e)) std::printf("EVENT %d %u %s\n", b.index, e.code, e.text.c_str());
+            } else if (h.type == net::PacketType::ChatMsg) {
+              net::ChatMsg m;
+              if (net::read(pl, m)) {
+                ++b.chat_rx;
+                std::printf("CHAT %d %llu %s\n", b.index, static_cast<unsigned long long>(m.from_user), m.text.c_str());
+              }
             }
           }
           enet_packet_destroy(ev.packet);
@@ -185,6 +205,16 @@ int main(int argc, char** argv) {
       next_tick += dt;
       for (auto& b : bots) {
         if (!b.welcomed || b.disconnected) continue;
+        // Chat: gửi chat_count tin liên tiếp (cách 50 ms) sau khi vào 1 s — kiểm tra phát theo bán kính + rate limit
+        if (!chat_text.empty() && b.chat_sent < chat_count && t >= b.welcomed_at + chat_delay + 0.05 * b.chat_sent) {
+          send(b, net::PacketType::ChatSay, net::write(net::ChatSay{chat_text}), true);
+          ++b.chat_sent;
+        }
+        if (still) {
+          b.mx = b.mz = 0;
+          b.buttons = 0;
+          b.next_turn = t + 1e9;
+        }
         if (t >= b.next_turn) {  // đổi hướng 1,5–4 s; đôi khi nước rút, cắn, uống
           std::uniform_int_distribution<int> d(-127, 127);
           b.mx = static_cast<int8_t>(d(b.rng));
@@ -193,8 +223,8 @@ int main(int argc, char** argv) {
           b.next_turn = t + 1.5 + (b.rng() % 2500) / 1000.0;
         }
         uint16_t btn = b.buttons;
-        if (b.rng() % 45 == 0) btn |= net::kAttack;
-        if (b.rng() % 90 == 0) btn |= net::kInteract;
+        if (!still && b.rng() % 45 == 0) btn |= net::kAttack;
+        if (!still && b.rng() % 90 == 0) btn |= net::kInteract;
         net::InputPacket ip{{{b.seq + 1, b.mx, b.mz, btn, 0}}};
         send(b, net::PacketType::Input, net::write(ip), false);
         if (t >= b.next_ping) {
@@ -213,6 +243,8 @@ int main(int argc, char** argv) {
   }
   // Tổng kết
   int welcomed = 0, rejected = 0, dropped = 0;
+  uint64_t chat_rx = 0;
+  for (const auto& b : bots) chat_rx += b.chat_rx;
   uint64_t snaps = 0, max_seen = 0;
   std::vector<double> rtts;
   for (auto& b : bots) {
@@ -231,9 +263,9 @@ int main(int argc, char** argv) {
   const double snap_rate = welcomed ? static_cast<double>(snaps) / welcomed / duration : 0;
   const std::string summary = std::format(
       R"({{"bots":{},"welcomed":{},"rejected":{},"disconnected":{},"snapshots_per_bot_s":{:.1f},"max_players_seen":{},)"
-      R"("rtt_p50_ms":{:.1f},"rtt_p95_ms":{:.1f},"rtt_p99_ms":{:.1f},"sim_loss":{},"sim_latency_ms":{}}})",
+      R"("rtt_p50_ms":{:.1f},"rtt_p95_ms":{:.1f},"rtt_p99_ms":{:.1f},"sim_loss":{},"sim_latency_ms":{},"chat_rx":{}}})",
       count, welcomed, rejected, dropped, snap_rate, max_seen, pct(rtts, 0.5), pct(rtts, 0.95), pct(rtts, 0.99), ns.loss,
-      ns.latency_ms);
+      ns.latency_ms, chat_rx);
   std::printf("%s\n", summary.c_str());
   if (!out_json.empty()) std::ofstream(out_json) << summary << '\n';
   enet_deinitialize();

@@ -1,8 +1,13 @@
-import { Controller, DefaultValuePipe, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, DefaultValuePipe, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
+import { IsInt, Max, Min } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, JwtAuthGuard, Roles, RolesGuard } from '../common/security';
 import { PrismaService } from '../prisma/prisma.service';
+
+export class MuteDto {
+  @ApiProperty({ description: 'Số phút cấm chat; 0 = gỡ cấm' }) @IsInt() @Min(0) @Max(525600) minutes: number;
+}
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -34,5 +39,15 @@ export class AdminController {
     ]);
     await this.audit.record('admin', admin.id, 'admin.ban', id);
     return { ok: true };
+  }
+
+  // Moderation: cấm chat có thời hạn (0 = gỡ). Có audit.
+  @Post('users/:id/mute')
+  @HttpCode(200)
+  async mute(@CurrentUser() admin: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() d: MuteDto) {
+    const until = d.minutes > 0 ? new Date(Date.now() + d.minutes * 60_000) : null;
+    await this.db.user.update({ where: { id }, data: { chatMutedUntil: until } });
+    await this.audit.record('admin', admin.id, d.minutes > 0 ? 'admin.mute' : 'admin.unmute', id, { minutes: d.minutes });
+    return { ok: true, mutedUntil: until };
   }
 }

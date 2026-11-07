@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "net/netsim.hpp"
@@ -50,6 +51,7 @@ struct ServerConfig {
   std::string public_address = "127.0.0.1";
   double heartbeat_interval_s = 10;
   double autosave_interval_s = 60;
+  float local_chat_radius_m = 30;
 };
 
 struct Metrics {
@@ -97,6 +99,10 @@ class GameServer {
     bool save_in_flight = false, save_conflict = false, final_save_sent = false;
     uint32_t save_seq = 0;
     double next_save = 0;
+    // Chat gần
+    net::TokenBucket chat{0.5, 3};  // 3 tin liền, sau đó 1 tin / 2 s
+    int64_t chat_muted_until = 0;   // unix giây (từ Backend)
+    std::unordered_set<uint64_t> blocked;  // user id số chặn/bị chặn (từ Backend, làm mới định kỳ)
   };
   struct Conn {
     _ENetPeer* peer = nullptr;
@@ -125,6 +131,8 @@ class GameServer {
   void welcome(Player& p);
   [[nodiscard]] std::string state_json(const Player& p) const;
   void shutdown_persist();
+  void handle_chat(Player& p, Conn& c, const net::ChatSay& m);
+  void apply_social(Player& p, const std::string& body);
   Player* player_by_id(uint32_t id);
   Conn* conn(_ENetPeer* peer);
 
@@ -156,6 +164,8 @@ class GameServer {
   std::mutex cmd_mu_;
   std::deque<std::string> cmds_;
   BackendLink backend_;
+  std::vector<std::string> banned_words_;  // data/social/social.json (cùng danh sách với Backend)
+  uint64_t chat_count_ = 0;
   double next_heartbeat_ = 0;
 };
 
