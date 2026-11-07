@@ -35,6 +35,8 @@ struct Bot {
   uint32_t seq = 0, player_id = 0;
   uint64_t snapshots = 0, max_seen_players = 0, events = 0, chat_rx = 0;
   int chat_sent = 0;
+  uint8_t capture = 0;
+  double next_interact = 0;
   double welcomed_at = 0;
   std::vector<double> rtt_ms;
   double next_ping = 0, next_turn = 0;
@@ -62,6 +64,8 @@ int main(int argc, char** argv) {
   std::string chat_text;  // --chat: mỗi bot gửi chat gần sau khi vào game (test)
   bool still = false;     // --still: đứng yên (test chat theo bán kính)
   double chat_delay = 1.0;
+  bool print_events = false;   // in mọi Event + thay đổi trạng thái bắt (test Phase 14)
+  double interact_every = 0;   // >0: bấm tương tác định kỳ (test giải cứu)
   double duration = 30, ramp = 0.05;
   net::NetSimSettings ns;
   const auto args = utf8_args(argc, argv);  // UTF-8 (Windows: argv gốc theo mã ANSI làm hỏng chữ tiếng Việt)
@@ -85,6 +89,8 @@ int main(int argc, char** argv) {
     else if (s == "--chat") chat_text = next();
     else if (s == "--chat-count") chat_count = std::stoi(next());
     else if (s == "--still") still = true;
+    else if (s == "--print-events") print_events = true;
+    else if (s == "--interact-every") interact_every = std::stod(next());
     else if (s == "--chat-delay") chat_delay = std::stod(next());
     else {
       std::fprintf(stderr, "cách dùng: pawbound_bot [--count n] [--duration s] [--host h] [--port p] [--world dir] [--sk file] "
@@ -176,6 +182,11 @@ int main(int argc, char** argv) {
               net::Snapshot s;
               if (net::read(pl, s)) {
                 ++b.snapshots;
+                if (print_events && s.self.capture != b.capture) {
+                  b.capture = s.self.capture;
+                  std::printf("CAPTURE %d %u %u\n", b.index, s.self.capture, s.self.capture_s);
+                  std::fflush(stdout);  // pipe: không đệm, test đọc theo thời gian thực
+                }
                 uint64_t players = 0;
                 for (const auto& e : s.entities) players += e.kind == net::kPlayer;
                 b.max_seen_players = std::max(b.max_seen_players, players);
@@ -188,12 +199,16 @@ int main(int argc, char** argv) {
             } else if (h.type == net::PacketType::Event) {
               ++b.events;
               net::EventMsg e;
-              if (!chat_text.empty() && net::read(pl, e)) std::printf("EVENT %d %u %s\n", b.index, e.code, e.text.c_str());
+              if ((print_events || !chat_text.empty()) && net::read(pl, e)) {
+                std::printf("EVENT %d %u %s\n", b.index, e.code, e.text.c_str());
+                std::fflush(stdout);
+              }
             } else if (h.type == net::PacketType::ChatMsg) {
               net::ChatMsg m;
               if (net::read(pl, m)) {
                 ++b.chat_rx;
                 std::printf("CHAT %d %llu %s\n", b.index, static_cast<unsigned long long>(m.from_user), m.text.c_str());
+                std::fflush(stdout);
               }
             }
           }
@@ -225,6 +240,10 @@ int main(int argc, char** argv) {
         uint16_t btn = b.buttons;
         if (!still && b.rng() % 45 == 0) btn |= net::kAttack;
         if (!still && b.rng() % 90 == 0) btn |= net::kInteract;
+        if (interact_every > 0 && t >= b.next_interact) {
+          b.next_interact = t + interact_every;
+          btn |= net::kInteract;
+        }
         net::InputPacket ip{{{b.seq + 1, b.mx, b.mz, btn, 0}}};
         send(b, net::PacketType::Input, net::write(ip), false);
         if (t >= b.next_ping) {

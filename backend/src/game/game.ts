@@ -8,6 +8,7 @@ import { CharactersService } from '../characters/characters';
 import { AuthUser, CurrentUser, JwtAuthGuard, ServiceTokenGuard } from '../common/security';
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketService } from '../tickets/ticket.service';
+import { AdvancedService } from './advanced';
 
 export const HEARTBEAT_STALE_MS = 30_000;
 
@@ -121,7 +122,14 @@ export class MatchmakingController {
 @UseGuards(ServiceTokenGuard)
 @Controller({ path: 'internal', version: '1' })
 export class InternalController {
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly adv: AdvancedService) {}
+
+  // Đồng đội (party + bang) dạng id số + guildId — game server dùng cho manh mối giải cứu và lãnh thổ.
+  private async teamInfo(userId: string) {
+    const t = await this.adv.teammates(userId);
+    const us = await this.db.user.findMany({ where: { id: { in: t.ids } }, select: { numericId: true } });
+    return { teammateUserIds: us.map((u) => u.numericId.toString()), guildId: t.guildId };
+  }
 
   @Post('servers/heartbeat')
   @HttpCode(200)
@@ -148,7 +156,7 @@ export class InternalController {
     // chatMutedUntil (unix giây): game server dùng cho chat gần; null = không bị cấm
     const muted = u.chatMutedUntil && u.chatMutedUntil > new Date() ? Math.floor(u.chatMutedUntil.getTime() / 1000) : null;
     return { characterId: c.id, numericId, breedId: c.breedId, name: c.name, state: c.state, stateVersion: c.stateVersion, chatMutedUntil: muted,
-             blockedUserIds: await this.blockedNumeric(c.userId) };
+             blockedUserIds: await this.blockedNumeric(c.userId), ...(await this.teamInfo(c.userId)) };
   }
 
   // Người chặn / bị chặn (cả hai chiều), dạng id số — game server lọc chat gần.
@@ -164,7 +172,7 @@ export class InternalController {
     const u = await this.db.user.findUnique({ where: { numericId: BigInt(numericId) }, select: { id: true, chatMutedUntil: true } });
     if (!u) throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'Không tìm thấy' });
     const muted = u.chatMutedUntil && u.chatMutedUntil > new Date() ? Math.floor(u.chatMutedUntil.getTime() / 1000) : null;
-    return { blockedUserIds: await this.blockedNumeric(u.id), chatMutedUntil: muted };
+    return { blockedUserIds: await this.blockedNumeric(u.id), chatMutedUntil: muted, ...(await this.teamInfo(u.id)) };
   }
 
   // Lưu trạng thái: idempotent theo key; optimistic concurrency theo stateVersion (409 nếu server khác đã ghi trước).

@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
     else if (s == "--world") cfg.world_dir = std::string(next());
     else if (s == "--data") cfg.data_root = std::string(next());
     else if (s == "--ticket-pubkey") cfg.ticket_pubkey = std::string(next());
+    else if (s == "--advanced") cfg.advanced_config = std::string(next());
     else if (s == "--metrics") cfg.metrics_file = std::string(next());
     else if (s == "--metrics-interval") ok = fnum(next(), cfg.metrics_interval_s);
     else if (s == "--sim-loss") ok = fnum(next(), cfg.netsim.loss);

@@ -216,6 +216,9 @@ std::vector<uint8_t> write(const Snapshot& m) {
   w.u16(s.hour_x100);
   w.u8(s.weather);
   w.u32(s.day);
+  w.u8(s.capture);
+  w.u16(s.capture_s);
+  w.u8(s.flags);
   const auto n = static_cast<uint8_t>(std::min<size_t>(m.entities.size(), kMaxSnapshotEntities));
   w.u8(n);
   // Vị trí: gốc tuyệt đối (int32 cm) + mỗi entity lệch int16 cm so với gốc (AOI 60 m << ±327 m) -> 16 byte/entity.
@@ -240,7 +243,8 @@ bool read(std::span<const uint8_t> p, Snapshot& m) {
   Reader r(p);
   auto& s = m.self;
   if (!r.u32(s.last_input_seq) || !r.u8(s.hp) || !r.u8(s.hunger) || !r.u8(s.thirst) || !r.u8(s.stamina) || !r.u8(s.rest) ||
-      !r.u8(s.life) || !r.u16(s.hour_x100) || !r.u8(s.weather) || !r.u32(s.day))
+      !r.u8(s.life) || !r.u16(s.hour_x100) || !r.u8(s.weather) || !r.u32(s.day) || !r.u8(s.capture) || !r.u16(s.capture_s) ||
+      !r.u8(s.flags) || s.capture > 3)
     return false;
   uint8_t n;
   int32_t ox = 0, oz = 0;
@@ -249,7 +253,7 @@ bool read(std::span<const uint8_t> p, Snapshot& m) {
   for (auto& e : m.entities) {
     int16_t dx = 0, dz = 0;
     if (!r.u32(e.id) || !r.u8(e.kind) || !r.u8(e.flags) || !r.i16(dx) || !r.i16(dz) || !r.i16(e.y_cm) || !r.u16(e.yaw) ||
-        !r.u8(e.gait) || !r.u8(e.hp) || e.kind > kNpcDog)
+        !r.u8(e.gait) || !r.u8(e.hp) || e.kind > kCompanion)
       return false;
     e.x_cm = ox + dx;
     e.z_cm = oz + dz;

@@ -223,8 +223,10 @@ void NetGame::update_visual(float dt) {
     } else {
       sim::Npc n;
       n.id = e.id;
-      n.kind = e.kind == net::kNpcHuman ? sim::NpcKind::Human : sim::NpcKind::Dog;
-      n.pers = static_cast<sim::Personality>((e.flags >> 2) & 7);
+      n.kind = (e.kind == net::kNpcHuman || e.kind == net::kThief) ? sim::NpcKind::Human : sim::NpcKind::Dog;
+      n.pers = e.kind == net::kThief       ? sim::Personality::Aggressive   // kẻ trộm chó
+               : e.kind == net::kCompanion ? sim::Personality::Friendly     // bạn đồng hành
+                                           : static_cast<sim::Personality>((e.flags >> 2) & 7);
       n.motor.pos = p;
       n.motor.yaw = yaw_of(st.yaw);
       n.motor.gait = static_cast<sim::Gait>(st.gait);
@@ -264,6 +266,16 @@ void NetGame::draw_hud(render::Overlay& o, int w, int h) const {
          render::Overlay::text_width(st, 1.6f * s) + 18 * s, 24 * s, {0, 0, 0, 0.5f});
   o.text(static_cast<float>(w) - render::Overlay::text_width(st, 1.6f * s) - 19 * s, 16 * s, st,
          connected() ? glm::vec4(0.6f, 1, 0.6f, 1) : glm::vec4(1, 0.4f, 0.3f, 1), 1.6f * s);
+  // Trạng thái bắt chó (server quyết định; client chỉ hiển thị)
+  if (self_.capture != 0) {
+    static const char* txt[] = {"", "KE TROM DANG DEN! Chay (Shift) / can (J) / vao khu an toan", "BI BAT - cho dong doi giai cuu",
+                                "DANG DUOC GIAI CUU..."};
+    const std::string line = std::format("{}  ({}:{:02d})", txt[std::min<int>(self_.capture, 3)], self_.capture_s / 60, self_.capture_s % 60);
+    const float tw = render::Overlay::text_width(line, 2.2f * s);
+    const float cx = (static_cast<float>(w) - tw) * 0.5f, cy = 70 * s;
+    o.rect(cx - 12 * s, cy - 8 * s, tw + 24 * s, 30 * s, self_.capture == 1 ? glm::vec4(0.6f, 0.05f, 0.05f, 0.85f) : glm::vec4(0.1f, 0.1f, 0.3f, 0.85f));
+    o.text(cx, cy, line, {1, 1, 1, 1}, 2.2f * s);
+  }
   float ly = static_cast<float>(h) - 40 * s;
   if (typing_) {  // ô nhập chat
     const std::string line = "Chat: " + render::Overlay::to_display(draft_) + "_";

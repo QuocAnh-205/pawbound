@@ -81,7 +81,7 @@ async function main() {
     check(await waitFor(async () => (await fetch(`${API}/health/ready`)).ok, 20000, 'backend ready'), 'backend khởi động với DB tạm');
 
     server = startProc(exe('pawbound_server'), ['--world', WORLD, '--data', REPO, '--port', String(GAME_PORT), '--server-id', SERVER_ID,
-      '--backend', API, '--linger', '1', '--autosave', '2'], { cwd: REPO, env: { ...process.env, PAWBOUND_SERVICE_TOKEN: fileEnv.INTERNAL_SERVICE_TOKEN } }, 'server');
+      '--backend', API, '--linger', '1', '--autosave', '2', '--advanced', resolve(REPO, 'tests/data/advanced_fast.json')], { cwd: REPO, env: { ...process.env, PAWBOUND_SERVICE_TOKEN: fileEnv.INTERNAL_SERVICE_TOKEN } }, 'server');
 
     // Người chơi: đăng ký + tạo chó
     const email = `it${Date.now()}@test.vn`;
@@ -171,6 +171,51 @@ async function main() {
     check(got(rb, 'b noi') === 1 && got(rb, 'c noi') === 1, 'B vẫn trong game, nhận tin của mình và của C (kiểm soát)');
     check(got(ra, 'b noi') === 0 && got(ra, 'c noi') === 1, 'A không nhận tin của B (chặn hai chiều) nhưng nhận tin của C (kiểm soát)');
     await waitFor(async () => (await db.gameSession.count({ where: { serverId: SERVER_ID, endedAt: null } })) === 0, 10000, 'đóng phiên block');
+
+    // ---- Phase 14: bị bắt -> relog KHÔNG thoát; giải cứu -> thưởng vào ví đúng một lần
+    const hold = /khu giữ \((-?[\d.]+), (-?[\d.]+)\)/.exec(server.log);
+    check(!!hold, 'server có khu giữ');
+    const hx = Number(hold[1]), hz = Number(hold[2]);
+    const uv = await mk('cap'), ur = await mk('res');
+    const pv = runBot(['--ticket', await tk(uv), '--duration', '30', '--still', '--print-events']);
+    const vid = await waitFor(async () => /người chơi #(\d+) \(user \d+ nhân vật \d+\) vào game[^\n]*$/.test(server.log), 5000, 'victim vào');
+    void vid;
+    const ids = [...server.log.matchAll(/người chơi #(\d+) \(user/g)].map((m) => m[1]);
+    server.stdin.write(`tp ${ids[ids.length - 1]} ${hx.toFixed(1)} ${(hz + 8).toFixed(1)}\n`);
+    let victimDone;
+    pv.then((r) => { victimDone = r; });
+    const capturedDb = await waitFor(async () => {
+      const c = await db.dogCharacter.findUnique({ where: { id: uv.charId } });
+      return c?.state?.capture?.state === 2;
+    }, 40000, 'bị bắt + lưu');
+    check(capturedDb, 'bị bắt -> trạng thái bị bắt được lưu NGAY vào DB');
+    while (!victimDone) await sleep(200);
+    check(/^EVENT 0 40 /m.test(victimDone.log) && /^CAPTURE 0 2 /m.test(victimDone.log), 'nạn nhân được cảnh báo rồi mới bị bắt');
+    await waitFor(async () => (await db.gameSession.count({ where: { serverId: SERVER_ID, endedAt: null } })) === 0, 10000, 'nạn nhân rời');
+    // Relog: vào lại -> vẫn bị bắt (ngay snapshot đầu)
+    server.stdin.write('capture off\n');
+    const pv2 = runBot(['--ticket', await tk(uv), '--duration', '12', '--still', '--print-events']);
+    await sleep(2500);
+    const rIds = [...server.log.matchAll(/người chơi #(\d+) \(user/g)].map((m) => m[1]);
+    const pr = runBot(['--ticket', await tk(ur), '--duration', '8', '--still', '--print-events', '--interact-every', '0.5']);
+    await waitFor(async () => [...server.log.matchAll(/người chơi #(\d+) \(user/g)].length > rIds.length, 5000, 'người cứu vào');
+    const all = [...server.log.matchAll(/người chơi #(\d+) \(user/g)].map((m) => m[1]);
+    server.stdin.write(`tp ${all[all.length - 1]} ${(hx + 1.5).toFixed(1)} ${hz.toFixed(1)}\n`);
+    const [rv2, rr] = await Promise.all([pv2, pr]);
+    check(/^CAPTURE 0 2 /m.test(rv2.log), 'RELOG khi bị bắt: vẫn bị bắt (không thoát bằng cách thoát game)');
+    check(/^EVENT 0 46 /m.test(rv2.log), 'đồng đội giải cứu thành công sau relog');
+    check(/^EVENT 0 60 \+80 xương \(rescue\)/m.test(rr.log), 'người cứu nhận thông báo thưởng');
+    await waitFor(async () => (await db.currencyTx.count({ where: { userId: ur.userId, reason: 'rescue' } })) >= 1, 8000, 'ví người cứu');
+    const txs = await db.currencyTx.findMany({ where: { userId: ur.userId }, orderBy: { id: 'asc' } });
+    const rescueTx = txs.filter((t) => t.reason === 'rescue');
+    check(rescueTx.length === 1 && rescueTx[0].delta === 80, `thưởng giải cứu vào ví Backend đúng MỘT lần (+80, refKey ${rescueTx[0]?.refKey})`);
+    check(txs.filter((t) => t.refKey.startsWith('quest:') && t.refKey.includes(':hero_rescue:')).length === 1, 'nhiệm vụ "giải cứu" thưởng đúng một lần');
+    const bal = (await db.wallet.findUnique({ where: { userId: ur.userId } }))?.balance;
+    check(bal === txs.reduce((a, t) => a + t.delta, 0), `số dư khớp sổ giao dịch (${bal})`);
+    const notes = await db.notification.count({ where: { type: 'teammate_captured' } });
+    check(notes === 0, 'không có đồng đội -> không ai nhận thông báo (không gửi cho người lạ)');
+    server.stdin.write('capture on\n');
+    await waitFor(async () => (await db.gameSession.count({ where: { serverId: SERVER_ID, endedAt: null } })) === 0, 10000, 'đóng phiên P14');
 
     // Tắt server có người chơi đang online: phải lưu + báo DRAINING
     const loadsBefore = (server.log.match(/\(đã lưu\)/g) || []).length;

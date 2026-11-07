@@ -11,6 +11,7 @@ import { CharactersController, CharactersService } from './characters/characters
 import { AllExceptionsFilter } from './common/errors';
 import { JwtAuthGuard, RolesGuard, ServiceTokenGuard } from './common/security';
 import { APP_ENV, AppEnv, loadEnv } from './config/env';
+import { AdvancedService, InternalAdvancedController, TerritoryController } from './game/advanced';
 import { InternalController, MatchmakingController, MatchmakingService } from './game/game';
 import { PrismaService } from './prisma/prisma.service';
 import { TicketService } from './tickets/ticket.service';
@@ -52,13 +53,14 @@ export function buildModule(env: AppEnv) {
     ],
     controllers: [HealthController, AuthController, MeController, CharactersController, MatchmakingController, InternalController, AdminController,
                   FriendsController, PartyController, GuildController, ChatController, NotificationsController,
-                  PaymentsController, AdminPaymentsController, WalletController, InternalWalletController],
+                  PaymentsController, AdminPaymentsController, WalletController, InternalWalletController,
+                  InternalAdvancedController, TerritoryController],
     providers: [
       { provide: APP_ENV, useValue: env },
       { provide: SOCIAL, useValue: loadSocialConfig() },
       { provide: ECONOMY, useValue: loadEconomyConfig() },
       { provide: PAYMENT_PROVIDER, useValue: new MockPaymentProvider(env.mockWebhookSecret) },  // loadEnv chỉ cho phép 'mock' (ngoài production)
-      PaymentsService, WalletService,
+      PaymentsService, WalletService, AdvancedService,
       NotificationsService, FriendsService, PartyService, GuildService, ChatService, ModerationService,
       { provide: APP_GUARD, useClass: ThrottlerGuard },
       PrismaService, AuditService, AuthService, CharactersService, TicketService, MatchmakingService,

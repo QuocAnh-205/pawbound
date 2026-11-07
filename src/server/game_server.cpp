@@ -94,6 +94,7 @@ bool GameServer::init(std::string& error) {
   nc_ = sim::load_npc_config(cfg_.data_root / "data/gameplay/npcs.json", d);
   wc_ = sim::load_world_sim_config(cfg_.data_root / "data/gameplay/world_sim.json", d);
   auto cat = sim::load_dog_catalog(cfg_.data_root / "data/dogs/breeds.json", d);
+  adv_ = sim::load_advanced_config(cfg_.advanced_config.empty() ? cfg_.data_root / "data/gameplay/advanced.json" : cfg_.advanced_config, d);
   if (!d.ok()) {
     error = "config: " + d.errors.front();
     return false;
@@ -114,6 +115,7 @@ bool GameServer::init(std::string& error) {
   for (const auto& c : world_.chunks)
     for (const auto& p : c.pois)
       if (p.kind == world::PoiKind::Spawn && spawn_ == glm::vec2(0.0f)) spawn_ = {world::to_m(p.x), world::to_m(p.z)};
+  init_advanced();
 
   ENetAddress addr{};
   addr.host = ENET_HOST_ANY;
@@ -276,6 +278,8 @@ void GameServer::handle_hello(Conn& c, const net::Hello& h) {
     col_->resolve(sp, 0.5f, world_.height_at(sp.x, sp.y), 0.3f);
     np.motor.pos = {sp.x, world_.height_at(sp.x, sp.y), sp.y};
     np.jti = claims.jti;
+    np.joined_at = now_;
+    np.last_xp_pos = xz(np.motor.pos);
     p = &players_.emplace(np.id, std::move(np)).first->second;
     log::info("server", "người chơi #{} (user {} nhân vật {}) vào game", p->id, p->user_id, p->char_id);
     if (backend_.enabled()) {  // nạp trạng thái đã lưu; Welcome gửi khi có kết quả
@@ -331,7 +335,7 @@ void GameServer::tick_player(Player& p, double dt) {
     mi.jump = (pressed & net::kJump) && p.motor.grounded && sim::spend_stamina(p.sv, sc, sc.jump_stamina);
   }
   auto st = p.stats;
-  const float sm = sim::speed_multiplier(p.sv, sc) * wsim_->effects().move;
+  const float sm = sim::speed_multiplier(p.sv, sc) * wsim_->effects().move * sim::speed_bonus(p.skills, adv_.skills);
   st.walk_speed *= sm;
   st.trot_speed *= sm;
   st.run_speed *= sm;
@@ -347,19 +351,23 @@ void GameServer::tick_player(Player& p, double dt) {
   sim::tick_combat(p.cb, gc_.combat, static_cast<float>(dt));
 
   if (alive && (pressed & net::kInteract)) {
+    p.interact_this_tick = true;  // hệ thống giải cứu dùng (tick_advanced)
     if (auto* n = sim::nearest_node(resources_, xz(p.motor.pos), gc_.interact_range_m)) {
       const auto r = sim::consume_at(*n, xz(p.motor.pos), p.sv, gc_);
       send(p.peer, net::PacketType::Event, net::write(net::EventMsg{1, std::string("interact: ") + sim::to_string(r)}), true);
+      if (r == sim::InteractResult::Ok && n->kind == world::PoiKind::Water) quest_event(p, sim::QuestObjective::Drink, 1);
+    } else {
+      try_recruit_companion(p);
     }
   }
   if (alive && (pressed & net::kForage))
     if (auto* n = sim::nearest_node(resources_, xz(p.motor.pos), gc_.interact_range_m, world::PoiKind::Food))
-      sim::forage_at(*n, xz(p.motor.pos), p.inv, gc_);
+      if (sim::forage_at(*n, xz(p.motor.pos), p.inv, gc_) == sim::InteractResult::Ok) quest_event(p, sim::QuestObjective::Forage, 1);
   if (alive && (pressed & net::kDodge)) {
     sim::Combatant me{p.motor.pos, p.motor.yaw, true, &p.sv, &p.cb};
     sim::request_dodge(me, gc_);
   }
-  if (alive && (pressed & net::kAttack)) {
+  if (alive && (pressed & net::kAttack) && !attack_thief(p, gc_.combat.bite_range_m + 0.7f)) {
     // Mục tiêu gần nhất (người chơi khác hoặc NPC) — server chọn, client không chỉ định
     float best = 2.5f;
     Player* tp = nullptr;
@@ -412,6 +420,7 @@ void GameServer::tick(double dt) {
     views.push_back({p.id, p.motor.pos, p.motor.yaw, &p.sv, &p.cb});
     positions.push_back(p.motor.pos);
   }
+  tick_advanced(dt);
   // Người chơi rớt mạng quá thời gian giữ chỗ -> lưu về Backend (nếu có) rồi mới gỡ
   std::erase_if(players_, [&](auto& kv) {
     Player& p = kv.second;
@@ -425,6 +434,7 @@ void GameServer::tick(double dt) {
       }
     }
     end_session(p.jti, "disconnect");
+    capture_->on_player_removed(p.id);
     log::info("server", "gỡ người chơi #{} (rớt mạng quá {:.0f} s)", kv.first, cfg_.linger_s);
     return true;
   });
@@ -456,6 +466,15 @@ void GameServer::send_snapshots() {
     s.self = {p.last_seq, u8clamp(p.sv.hp), u8clamp(p.sv.hunger), u8clamp(p.sv.thirst), u8clamp(p.sv.stamina),
               u8clamp(p.sv.rest), static_cast<uint8_t>(p.sv.life), static_cast<uint16_t>(wsim_->clock().hour() * 100),
               static_cast<uint8_t>(wsim_->weather()), static_cast<uint32_t>(wsim_->clock().day())};
+    {
+      const int64_t un = unix_now();
+      s.self.capture = static_cast<uint8_t>(p.cap.state);
+      if (p.cap.state == sim::CaptureState::Captured || p.cap.state == sim::CaptureState::RescueInProgress)
+        s.self.capture_s = static_cast<uint16_t>(std::clamp<int64_t>(p.cap.hold_until - un, 0, 65535));
+      else if (p.cap.state == sim::CaptureState::Threatened)
+        s.self.capture_s = static_cast<uint16_t>(std::max(0.0, adv_.capture.give_up_s - (now_ - p.cap.threatened_at)));
+      s.self.flags = p.has_companion ? 1 : 0;
+    }
     struct Cand {
       float d;
       net::EntityState e;
@@ -474,6 +493,20 @@ void GameServer::send_snapshots() {
       if (o.online && o.loaded)
         add(oid, net::kPlayer, static_cast<uint8_t>((o.sv.life == sim::LifeState::Alive) | (o.sprinting << 1) | (oid == p.id ? 32 : 0)),
             o.motor, o.sv.hp);
+    for (const auto& t : capture_->thieves()) {
+      sim::MotorState m;
+      m.pos = {t.pos.x, world_.height_at(t.pos.x, t.pos.y), t.pos.y};
+      m.gait = sim::Gait::Run;
+      add(0x40000000u | t.id, net::kThief, static_cast<uint8_t>(t.hp > 0), m, t.hp);
+    }
+    for (auto& [oid, o] : players_)
+      if (o.online && o.loaded && o.has_companion) {
+        sim::MotorState m;
+        m.pos = {o.companion.pos.x, world_.height_at(o.companion.pos.x, o.companion.pos.y), o.companion.pos.y};
+        m.yaw = o.companion.yaw;
+        m.gait = sim::Gait::Trot;
+        add(0x20000000u | oid, net::kCompanion, 1, m, 100);
+      }
     for (const auto& n : npcs_->npcs())
       add(0x80000000u | n.id, n.kind == sim::NpcKind::Human ? net::kNpcHuman : net::kNpcDog,
           static_cast<uint8_t>((n.sv.life == sim::LifeState::Alive) | (static_cast<int>(n.pers) << 2)), n.motor, n.sv.hp);
@@ -539,10 +572,22 @@ void GameServer::command(const std::string& line) {
       p->motor.vel = {0, 0};
       log::info("console", "tp #{} -> ({:.1f}, {:.1f})", id, sp.x, sp.y);
     }
+  } else if (cmd == "hour") {
+    double hr = -1;
+    is >> hr;
+    if (hr >= 0 && hr < 24) {
+      wsim_->clock().set_hour(hr);
+      log::info("console", "giờ thế giới = {:.1f}", hr);
+    }
+  } else if (cmd == "capture") {
+    std::string v;
+    is >> v;
+    capture_->set_enabled(v == "on");
+    log::info("console", "kẻ trộm: {}", v == "on" ? "BẬT" : "tắt");
   } else if (cmd == "chatstats") {
     log::info("console", "chat gần đã phát: {}", chat_count_);
   } else if (!cmd.empty()) {
-    log::info("console", "lệnh: status | players | kick <id> | tp <id> <x> <z> | chatstats | quit");
+    log::info("console", "lệnh: status | players | kick <id> | tp <id> <x> <z> | hour <h> | capture on|off | chatstats | quit");
   }
 }
 
@@ -636,7 +681,11 @@ std::string GameServer::state_json(const Player& p) const {
                           {"thirst", std::clamp(p.sv.thirst, 0.0f, 100.0f)},
                           {"stamina", std::clamp(p.sv.stamina, 0.0f, 100.0f)},
                           {"rest", std::clamp(p.sv.rest, 0.0f, 100.0f)}}},
-                        {"inventory", inv}}
+                        {"inventory", inv},
+                        {"capture", p.cap},
+                        {"skills", sim::skills_to_json(p.skills)},
+                        {"quests", sim::quests_to_json(p.quests)},
+                        {"companion", p.has_companion}}
       .dump();
 }
 
@@ -715,6 +764,19 @@ void GameServer::finish_load(Player& p, const BackendResult& r) {
       log::warn("backend", "nhân vật {}: inventory đã lưu không hợp lệ ({}) -> túi rỗng", p.char_id, err);
   }
   apply_social(p, r.body);
+  // Phase 14: kỹ năng, nhiệm vụ, companion, trạng thái bị bắt (chống relog-thoát)
+  if (st.contains("skills")) sim::skills_from_json(st["skills"], p.skills, adv_.skills);
+  if (st.contains("quests")) sim::quests_from_json(st["quests"], p.quests, adv_.quests);
+  p.has_companion = st.contains("companion") && st["companion"].is_boolean() && st["companion"].get<bool>() && adv_.companion.enabled;
+  if (p.has_companion) p.companion = {p.id, xz(p.motor.pos) - glm::vec2(1.5f, 0), 0, -1e9};
+  if (st.contains("capture")) {
+    sim::from_json_safe(st["capture"], p.cap);
+    glm::vec2 where = xz(p.motor.pos);
+    sim::CapturePlayer cp{p.id, where, true, true, false, 0, false, &p.cap, &where};
+    capture_->restore(cp, unix_now());
+    if (where != xz(p.motor.pos)) p.motor.pos = {where.x, world_.height_at(where.x, where.y), where.y};
+  }
+  p.last_xp_pos = xz(p.motor.pos);
   p.loaded = true;
   p.next_save = now_ + cfg_.autosave_interval_s;
   log::info("backend", "nạp nhân vật {} v{} ({})", p.char_id, p.state_version, st.empty() ? "mới" : "đã lưu");
@@ -731,6 +793,24 @@ void GameServer::backend_pump() {
       case BackendJob::Social:
         if (Player* p = player_by_id(r.player); p && p->char_id == r.char_id && r.status == 200) apply_social(*p, r.body);
         break;
+      case BackendJob::Notify:
+        if (r.status != 200) log::warn("backend", "gửi thông báo lỗi: {}", describe(r));
+        break;
+      case BackendJob::Reward:
+        if (r.status != 200) log::warn("backend", "cộng thưởng lỗi (refKey idempotent, gửi lại không cộng trùng): {}", describe(r));
+        break;
+      case BackendJob::Territory: {
+        const auto j = nlohmann::json::parse(r.body, nullptr, false);
+        const bool okj = !j.is_discarded() && j.is_object();
+        const std::string msg = r.status == 200 ? std::format("Bang đã chiếm/giữ khu #{}", okj ? j.value("zoneId", -1) : -1)
+                                                : std::format("Chiếm khu thất bại: {}", okj && j.contains("message") && j["message"].is_string()
+                                                                                             ? j["message"].get<std::string>() : describe(r));
+        log::info("territory", "{}", msg);
+        if (okj && j.contains("guildId") && j["guildId"].is_string())
+          for (auto& [id, p] : players_)
+            if (p.guild_id == j["guildId"].get<std::string>()) event(p, 70, msg);
+        break;
+      }
       case BackendJob::EndSession:
         if (r.status != 200) log::warn("backend", "kết thúc phiên lỗi: {}", describe(r));
         break;
@@ -774,6 +854,12 @@ void GameServer::apply_social(Player& p, const std::string& body) {
   const auto j = nlohmann::json::parse(body, nullptr, false);
   if (j.is_discarded()) return;
   p.chat_muted_until = j.contains("chatMutedUntil") && j["chatMutedUntil"].is_number_integer() ? j["chatMutedUntil"].get<int64_t>() : 0;
+  if (j.contains("teammateUserIds") && j["teammateUserIds"].is_array()) {
+    p.teammates.clear();
+    for (const auto& v : j["teammateUserIds"])
+      if (v.is_string()) p.teammates.insert(std::strtoull(v.get<std::string>().c_str(), nullptr, 10));
+  }
+  if (j.contains("guildId")) p.guild_id = j["guildId"].is_string() ? j["guildId"].get<std::string>() : "";
   if (j.contains("blockedUserIds") && j["blockedUserIds"].is_array()) {
     p.blocked.clear();
     for (const auto& v : j["blockedUserIds"])

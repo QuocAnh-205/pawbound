@@ -16,6 +16,7 @@
 #include "net/protocol.hpp"
 #include "net/ticket.hpp"
 #include "server/backend_link.hpp"
+#include "sim/advanced.hpp"
 #include "sim/collision.hpp"
 #include "sim/gameplay.hpp"
 #include "sim/nav.hpp"
@@ -35,6 +36,7 @@ struct ServerConfig {
   std::filesystem::path world_dir = "out/world_demo";
   std::filesystem::path data_root = ".";
   std::filesystem::path ticket_pubkey = "config/dev_keys/ticket_pk.b64";
+  std::filesystem::path advanced_config;  // rỗng = <data_root>/data/gameplay/advanced.json
   std::filesystem::path metrics_file;  // JSON lines (cho load test); rỗng = tắt
   int snapshot_hz = 20;
   double hello_timeout_s = 5;
@@ -52,6 +54,10 @@ struct ServerConfig {
   double heartbeat_interval_s = 10;
   double autosave_interval_s = 60;
   float local_chat_radius_m = 30;
+  // Phase 14 — lãnh thổ (MVP): bang có >= N thành viên online trong một khu, không có bang khác, đủ T giây -> xin chiếm
+  int territory_min_members = 2;
+  double territory_hold_s = 60;
+  double territory_eval_interval_s = 5;
 };
 
 struct Metrics {
@@ -103,6 +109,17 @@ class GameServer {
     net::TokenBucket chat{0.5, 3};  // 3 tin liền, sau đó 1 tin / 2 s
     int64_t chat_muted_until = 0;   // unix giây (từ Backend)
     std::unordered_set<uint64_t> blocked;  // user id số chặn/bị chặn (từ Backend, làm mới định kỳ)
+    // Phase 14
+    double joined_at = 0;                    // giờ server lúc vào phiên (bảo vệ người mới khỏi kẻ trộm)
+    sim::CaptureStatus cap;
+    sim::SkillSet skills;
+    sim::QuestBook quests;
+    bool has_companion = false;
+    sim::Companion companion;
+    glm::vec2 last_xp_pos{0.0f};
+    bool interact_this_tick = false;
+    std::unordered_set<uint64_t> teammates;  // user id số cùng party/bang (từ Backend)
+    std::string guild_id;
   };
   struct Conn {
     _ENetPeer* peer = nullptr;
@@ -133,6 +150,17 @@ class GameServer {
   void shutdown_persist();
   void handle_chat(Player& p, Conn& c, const net::ChatSay& m);
   void apply_social(Player& p, const std::string& body);
+  // Phase 14 (advanced_server.cpp)
+  void init_advanced();
+  void tick_advanced(double dt);
+  void on_capture_event(const sim::CaptureEvent& e);
+  void quest_event(Player& p, sim::QuestObjective obj, float amount);
+  void grant_bones(Player& p, int amount, const std::string& reason, const std::string& ref_key);
+  void try_recruit_companion(Player& p);
+  bool attack_thief(Player& p, float range);
+  void tick_territory();
+  void notify_teammates(const Player& victim, const std::string& text);
+  void event(Player& p, uint16_t code, const std::string& text);
   Player* player_by_id(uint32_t id);
   Conn* conn(_ENetPeer* peer);
 
@@ -164,6 +192,11 @@ class GameServer {
   std::mutex cmd_mu_;
   std::deque<std::string> cmds_;
   BackendLink backend_;
+  sim::AdvancedConfig adv_;
+  std::unique_ptr<sim::CaptureSystem> capture_;
+  double next_territory_eval_ = 0;
+  std::unordered_map<std::string, double> territory_hold_;  // "zone:guild" -> giây giữ liên tục
+  std::unordered_map<int, double> territory_cooldown_;      // zone -> giờ server được thử lại
   std::vector<std::string> banned_words_;  // data/social/social.json (cùng danh sách với Backend)
   uint64_t chat_count_ = 0;
   double next_heartbeat_ = 0;

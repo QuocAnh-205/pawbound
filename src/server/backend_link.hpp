@@ -12,7 +12,7 @@
 
 namespace pb::server {
 
-enum class BackendJob : uint8_t { Heartbeat, Load, Save, EndSession, Social };
+enum class BackendJob : uint8_t { Heartbeat, Load, Save, EndSession, Social, Notify, Reward, Territory };
 
 struct BackendRequest {
   BackendJob kind = BackendJob::Heartbeat;

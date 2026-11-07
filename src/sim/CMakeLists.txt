@@ -8,6 +8,7 @@ add_library(pb_sim STATIC
   nav.cpp
   npc.cpp
   world_sim.cpp
+  advanced.cpp
 )
 target_link_libraries(pb_sim PUBLIC pb_core pb_world)
 pb_set_warnings(pb_sim)

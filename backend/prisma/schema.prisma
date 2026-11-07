@@ -454,3 +454,17 @@ model UserCosmetic {
 
   @@id([userId, cosmeticId])
 }
+
+// ============================================================================ Phase 14 — lãnh thổ (MVP)
+// Chỉ uy tín/hiển thị — KHÔNG cho sức mạnh chiến đấu; không mua được bằng tiền thật. Game server báo hiện diện, Backend quyết định chủ.
+model Territory {
+  zoneId        Int       @id
+  guildId       String?   @db.Uuid
+  claimedAt     DateTime?
+  expiresAt     DateTime? // hết hạn duy trì (upkeep) -> khu trống
+  protectedTill DateTime? // sau khi chiếm: bảo hộ chống chiếm lại ngay (chống grief qua lại)
+  serverId      String?
+  updatedAt     DateTime  @updatedAt
+
+  @@index([guildId])
+}

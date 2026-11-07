@@ -12,7 +12,7 @@
 
 namespace pb::net {
 
-inline constexpr uint16_t kProtocolVersion = 1;
+inline constexpr uint16_t kProtocolVersion = 2;  // v2 (Phase 14): SelfState có trạng thái bắt/companion; entity kẻ trộm/companion
 inline constexpr size_t kHeaderSize = 16;
 inline constexpr size_t kMaxPayload = 1200;
 inline constexpr uint16_t kDefaultPort = 27015;
@@ -96,7 +96,7 @@ struct InputCmd {
 struct InputPacket {
   std::vector<InputCmd> cmds;  // 1..3 lệnh gần nhất (dư thừa chống mất gói)
 };
-enum EntityKind : uint8_t { kPlayer = 0, kNpcHuman = 1, kNpcDog = 2 };
+enum EntityKind : uint8_t { kPlayer = 0, kNpcHuman = 1, kNpcDog = 2, kThief = 3, kCompanion = 4 };
 struct EntityState {
   uint32_t id = 0;
   uint8_t kind = kPlayer;
@@ -114,6 +114,9 @@ struct SelfState {
   uint16_t hour_x100 = 0;  // giờ thế giới × 100
   uint8_t weather = 0;
   uint32_t day = 0;
+  uint8_t capture = 0;     // sim::CaptureState
+  uint16_t capture_s = 0;  // giây còn lại: cảnh báo (Threatened) / thời hạn giữ (Captured)
+  uint8_t flags = 0;       // bit0: có companion
 };
 struct Snapshot {
   SelfState self;

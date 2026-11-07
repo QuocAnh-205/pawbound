@@ -1,4 +1,4 @@
-add_library(pb_server STATIC game_server.cpp backend_link.cpp)
+add_library(pb_server STATIC game_server.cpp backend_link.cpp advanced_server.cpp)
 target_link_libraries(pb_server PUBLIC pb_core pb_world pb_sim pb_net PRIVATE nlohmann_json::nlohmann_json)
 if(WIN32)
   target_link_libraries(pb_server PUBLIC psapi)

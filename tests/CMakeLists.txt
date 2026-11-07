@@ -89,3 +89,9 @@ if(Python3_FOUND)
            "${CMAKE_BINARY_DIR}/bin" "${CMAKE_BINARY_DIR}/out/world_demo")
   set_tests_properties(net_local_chat PROPERTIES DEPENDS world_generate_demo TIMEOUT 120 LABELS "net")
 endif()
+if(Python3_FOUND)
+  # Phase 14: kẻ trộm cảnh báo -> bắt -> giải cứu -> thưởng, qua mạng thật
+  add_test(NAME net_capture_rescue COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/capture_smoke.py"
+           "${CMAKE_BINARY_DIR}/bin" "${CMAKE_BINARY_DIR}/out/world_demo")
+  set_tests_properties(net_capture_rescue PROPERTIES DEPENDS world_generate_demo TIMEOUT 180 LABELS "net")
+endif()
