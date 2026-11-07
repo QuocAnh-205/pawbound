@@ -1,0 +1,5 @@
+{
+  "_note": "Giá do SERVER quyết định. Đổi giá = sửa file này (có review). Không có giao dịch tiền thật ở dev/test.",
+  "guild_creation": { "enabled": true, "amount": 100000, "currency": "VND" },
+  "order_ttl_s": 1800
+}

@@ -3,7 +3,7 @@ import { Harness, startHarness } from './harness';
 
 let h: Harness;
 beforeAll(async () => {
-  h = await startHarness('social', { THROTTLE_REGISTER_PER_MIN: '1000', THROTTLE_DEFAULT_PER_MIN: '100000', THROTTLE_CHAT_PER_MIN: '100000' });
+  h = await startHarness('social', { THROTTLE_REGISTER_PER_MIN: '1000', THROTTLE_DEFAULT_PER_MIN: '100000', THROTTLE_CHAT_PER_MIN: '100000', PAWBOUND_GUILD_FEE: 'off' });
 }, 120_000);
 afterAll(async () => h?.close());
 

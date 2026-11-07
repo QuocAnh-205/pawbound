@@ -34,7 +34,7 @@ beforeAll(async () => {
   await admin.$executeRawUnsafe(`CREATE DATABASE "${TEMP_DB}"`);
   // Migration chạy từ database RỖNG (chứng minh migrate từ đầu hoạt động)
   execSync('npx prisma migrate deploy', { cwd: ROOT, stdio: 'pipe', env: process.env });
-  app = await NestFactory.create(buildModule(loadEnv()), { logger: false });
+  app = await NestFactory.create(buildModule(loadEnv()), { logger: false, rawBody: true });
   configureApp(app);
   await app.init();
   db = app.get(PrismaService);

@@ -21,6 +21,10 @@ import { ModerationService } from './social/moderation';
 import { NotificationsController, NotificationsService } from './social/notifications';
 import { PartyController, PartyService } from './social/party';
 import { loadSocialConfig, SOCIAL } from './social/social.config';
+import { ECONOMY, loadEconomyConfig } from './payments/economy.config';
+import { AdminPaymentsController, PaymentsController, PaymentsService } from './payments/payments';
+import { MockPaymentProvider, PAYMENT_PROVIDER } from './payments/provider';
+import { InternalWalletController, WalletController, WalletService } from './payments/wallet';
 
 @Controller({ path: 'health', version: '1' })
 class HealthController {
@@ -47,10 +51,14 @@ export function buildModule(env: AppEnv) {
       ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: Number(process.env.THROTTLE_DEFAULT_PER_MIN ?? 120) }]),
     ],
     controllers: [HealthController, AuthController, MeController, CharactersController, MatchmakingController, InternalController, AdminController,
-                  FriendsController, PartyController, GuildController, ChatController, NotificationsController],
+                  FriendsController, PartyController, GuildController, ChatController, NotificationsController,
+                  PaymentsController, AdminPaymentsController, WalletController, InternalWalletController],
     providers: [
       { provide: APP_ENV, useValue: env },
       { provide: SOCIAL, useValue: loadSocialConfig() },
+      { provide: ECONOMY, useValue: loadEconomyConfig() },
+      { provide: PAYMENT_PROVIDER, useValue: new MockPaymentProvider(env.mockWebhookSecret) },  // loadEnv chỉ cho phép 'mock' (ngoài production)
+      PaymentsService, WalletService,
       NotificationsService, FriendsService, PartyService, GuildService, ChatService, ModerationService,
       { provide: APP_GUARD, useClass: ThrottlerGuard },
       PrismaService, AuditService, AuthService, CharactersService, TicketService, MatchmakingService,

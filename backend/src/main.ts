@@ -16,7 +16,7 @@ function loadDotEnv(file = '.env') {
 async function bootstrap() {
   loadDotEnv();
   const env = loadEnv();
-  const app = await NestFactory.create(buildModule(env), { logger: ['log', 'warn', 'error'] });
+  const app = await NestFactory.create(buildModule(env), { logger: ['log', 'warn', 'error'], rawBody: true });
   configureApp(app);
   app.enableShutdownHooks();
   await app.listen(env.port, '127.0.0.1');

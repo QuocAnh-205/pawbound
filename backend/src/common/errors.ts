@@ -13,7 +13,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const status = err.getStatus();
       const message = typeof body === 'string' ? body : (body as { message?: unknown }).message ?? err.message;
       const code = typeof body === 'object' && body && 'code' in body ? (body as { code: string }).code : HttpStatus[status];
-      return res.status(status).json({ statusCode: status, code, message });
+      // Trường bổ sung có chủ đích do code ném ra (vd amount/currency cho 402, mutedUntil) — chỉ kiểu nguyên thủy, không lộ stack.
+      const extra: Record<string, string | number | boolean | null> = {};
+      if (typeof body === 'object' && body)
+        for (const [k, v] of Object.entries(body))
+          if (!['statusCode', 'code', 'message', 'error'].includes(k) && (v === null || ['string', 'number', 'boolean'].includes(typeof v))) extra[k] = v as never;
+      return res.status(status).json({ statusCode: status, code, message, ...extra });
     }
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
       if (err.code === 'P2002') return res.status(409).json({ statusCode: 409, code: 'CONFLICT', message: 'Dữ liệu đã tồn tại' });

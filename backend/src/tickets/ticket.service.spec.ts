@@ -32,7 +32,10 @@ describe('TicketService', () => {
     const [p, s] = ticket.split('.');
     const forged = Buffer.from(JSON.stringify({ v: 1, sub: 999, chr: 1, srv: 'dev-1', exp: 9e9, jti: 'x' })).toString('base64url');
     expect(svc.verify(`${forged}.${s}`)).toBeNull();
-    expect(svc.verify(`${p}.${s.slice(0, -2)}AA`)).toBeNull();
+    // Lật một bit của chữ ký (thay 2 ký tự cuối bằng 'AA' từng gây test chập chờn khi chữ ký vốn đã như vậy)
+    const sig = Buffer.from(s, 'base64url');
+    sig[10] ^= 0x01;
+    expect(svc.verify(`${p}.${sig.toString('base64url')}`)).toBeNull();
   });
 
   it('mỗi ticket có jti khác nhau (dùng một lần)', () => {

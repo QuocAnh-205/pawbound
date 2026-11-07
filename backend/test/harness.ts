@@ -32,7 +32,7 @@ export async function startHarness(tag: string, extraEnv: Record<string, string>
   const admin = new PrismaClient({ datasources: { db: { url: baseUrl.toString() } } });
   await admin.$executeRawUnsafe(`CREATE DATABASE "${tempDb}"`);
   execSync('npx prisma migrate deploy', { cwd: ROOT, stdio: 'pipe', env: process.env });
-  const app = await NestFactory.create(buildModule(loadEnv()), { logger: false });
+  const app = await NestFactory.create(buildModule(loadEnv()), { logger: false, rawBody: true });
   configureApp(app);
   await app.init();
   return {

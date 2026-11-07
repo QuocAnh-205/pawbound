@@ -50,6 +50,11 @@ model User {
   guildMember    GuildMember?
   chatMessages   ChatMessage[]
   notifications  Notification[]
+  // Phase 13
+  paymentOrders  PaymentOrder[]
+  entitlements   Entitlement[]
+  wallet         Wallet?
+  cosmetics      UserCosmetic[]
 }
 
 // Refresh token chỉ lưu HASH (SHA-256), không lưu bản gốc. familyId: chuỗi xoay vòng; dùng lại token đã xoay -> thu hồi cả họ.
@@ -342,4 +347,110 @@ model Notification {
 
   @@unique([userId, dedupeKey])
   @@index([userId, createdAt])
+}
+
+// ============================================================================ Phase 13 — Thanh toán (mock/sandbox) & kinh tế
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+  REFUNDED
+}
+
+enum EntitlementStatus {
+  AVAILABLE
+  CONSUMED
+  REVOKED
+}
+
+// Số tiền/tiền tệ do SERVER quyết định theo purpose (data/economy/pricing.json), không bao giờ lấy từ client.
+model PaymentOrder {
+  id             String         @id @default(uuid()) @db.Uuid
+  userId         String         @db.Uuid
+  user           User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  purpose        String // GUILD_CREATION
+  amount         Int // VND (không có đơn vị lẻ)
+  currency       String
+  provider       String
+  providerRef    String?
+  checkoutUrl    String?
+  idempotencyKey String
+  status         PaymentStatus  @default(PENDING)
+  expiresAt      DateTime
+  paidAt         DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  events         PaymentEvent[]
+  entitlement    Entitlement?
+
+  @@unique([userId, idempotencyKey])
+  @@unique([provider, providerRef])
+  @@index([status, expiresAt])
+}
+
+// Sổ cái sự kiện thanh toán: CHỈ THÊM (trigger DB chặn UPDATE/DELETE). Mọi webhook đều được ghi, kể cả bị từ chối.
+model PaymentEvent {
+  id              BigInt        @id @default(autoincrement())
+  provider        String
+  providerEventId String?
+  orderId         String?       @db.Uuid
+  order           PaymentOrder? @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  type            String
+  amount          Int?
+  currency        String?
+  signatureValid  Boolean
+  outcome         String // APPLIED | DUPLICATE | REJECTED_* | IGNORED_*
+  payloadSha256   String
+  receivedAt      DateTime      @default(now())
+
+  @@unique([provider, providerEventId])
+  @@index([orderId])
+}
+
+// Quyền (vd tạo một bang) sinh ra từ một order đã PAID — đúng một entitlement cho mỗi order.
+model Entitlement {
+  id         String            @id @default(uuid()) @db.Uuid
+  userId     String            @db.Uuid
+  user       User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  kind       String // GUILD_CREATION
+  orderId    String            @unique @db.Uuid
+  order      PaymentOrder      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  status     EntitlementStatus @default(AVAILABLE)
+  guildId    String?           @unique @db.Uuid
+  createdAt  DateTime          @default(now())
+  consumedAt DateTime?
+
+  @@index([userId, kind, status])
+}
+
+// Ví tiền TRONG GAME ("xương"): chỉ kiếm bằng chơi (game server báo), chỉ tiêu cho cosmetic. Không bán bằng tiền thật.
+model Wallet {
+  userId    String   @id @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// Sổ giao dịch ví: chỉ thêm; refKey unique -> báo cộng tiền lặp (gửi lại) không cộng hai lần.
+model CurrencyTx {
+  id           BigInt   @id @default(autoincrement())
+  userId       String   @db.Uuid
+  delta        Int
+  reason       String
+  refKey       String   @unique
+  balanceAfter Int
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model UserCosmetic {
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cosmeticId String
+  acquiredAt DateTime @default(now())
+
+  @@id([userId, cosmeticId])
 }

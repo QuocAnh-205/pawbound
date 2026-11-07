@@ -1,0 +1,11 @@
+{
+  "_note": "Chỉ thay đổi NGOẠI HÌNH. Không có chỉ số chiến đấu/sinh tồn (chống pay-to-win). Giá bằng 'xương' kiếm trong game.",
+  "currency": "bones",
+  "earn_cap_per_call": 500,
+  "items": [
+    { "id": "coat_golden", "name": "Lông vàng óng", "price": 300, "coat_color": 5 },
+    { "id": "coat_midnight", "name": "Lông đen bóng", "price": 300, "coat_color": 6 },
+    { "id": "collar_red", "name": "Vòng cổ đỏ", "price": 120 },
+    { "id": "bandana_blue", "name": "Khăn xanh", "price": 150 }
+  ]
+}

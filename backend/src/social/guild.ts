@@ -1,4 +1,4 @@
-import { Body, ConflictException, Controller, Delete, ForbiddenException, Get, HttpCode, Inject, Injectable, NotFoundException, Param,
+import { Body, ConflictException, Controller, Delete, ForbiddenException, Get, HttpCode, HttpException, HttpStatus, Inject, Injectable, NotFoundException, Param,
   ParseUUIDPipe, Patch, Post, Query, UnprocessableEntityException, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { Prisma } from '@prisma/client';
@@ -8,6 +8,7 @@ import { AuthUser, CurrentUser, JwtAuthGuard } from '../common/security';
 import { PrismaService } from '../prisma/prisma.service';
 import { blockedEither, presence, UserIdDto } from './friends';
 import { canAct, GuildAction, GuildRole, permissionsOf } from './guild.permissions';
+import { ECONOMY, EconomyConfig, GUILD_CREATION } from '../payments/economy.config';
 import { ModerationService } from './moderation';
 import { isUniqueViolation, NotificationsService } from './notifications';
 import { SOCIAL, SocialConfig, secondsFromNow } from './social.config';
@@ -38,7 +39,8 @@ const nameTaken = () => new ConflictException({ code: 'GUILD_NAME_TAKEN', messag
 @Injectable()
 export class GuildService {
   constructor(private readonly db: PrismaService, private readonly notes: NotificationsService, private readonly audit: AuditService,
-              private readonly mod: ModerationService, @Inject(SOCIAL) private readonly cfg: SocialConfig) {}
+              private readonly mod: ModerationService, @Inject(SOCIAL) private readonly cfg: SocialConfig,
+              @Inject(ECONOMY) private readonly eco: EconomyConfig) {}
 
   validateName(raw: string) {
     const { name, key } = normalizeGuildName(raw);
@@ -99,8 +101,23 @@ export class GuildService {
     this.validateName(dto.name);
     if (await this.db.guildMember.findUnique({ where: { userId: me } }))
       throw new ConflictException({ code: 'ALREADY_IN_GUILD', message: 'Bạn đã ở trong một bang hội' });
+    const fee = this.eco.pricing.guildCreation.enabled;
+    if (fee && !(await this.db.entitlement.findFirst({ where: { userId: me, kind: GUILD_CREATION, status: 'AVAILABLE' } })))
+      throw new HttpException({ code: 'PAYMENT_REQUIRED', message: `Lập bang cần phí ${this.eco.pricing.guildCreation.amount} ${this.eco.pricing.guildCreation.currency}`,
+                                amount: this.eco.pricing.guildCreation.amount, currency: this.eco.pricing.guildCreation.currency }, HttpStatus.PAYMENT_REQUIRED);
     try {
-      const g = await this.db.$transaction((tx) => this.createWithin(tx, me, dto));
+      const g = await this.db.$transaction(async (tx) => {
+        const created = await this.createWithin(tx, me, dto);
+        if (fee) {
+          // Tiêu entitlement TRONG CÙNG transaction: lập bang lỗi (trùng tên...) -> rollback, quyền còn nguyên để thử lại
+          const ent = await tx.entitlement.findFirst({ where: { userId: me, kind: GUILD_CREATION, status: 'AVAILABLE' }, orderBy: { createdAt: 'asc' } });
+          const r = ent && (await tx.entitlement.updateMany({ where: { id: ent.id, status: 'AVAILABLE' },
+                                                              data: { status: 'CONSUMED', consumedAt: new Date(), guildId: created.id } }));
+          if (!r || r.count !== 1) throw new HttpException({ code: 'PAYMENT_REQUIRED', message: 'Quyền lập bang đã được dùng' }, HttpStatus.PAYMENT_REQUIRED);
+          await this.audit.record('user', me, 'entitlement.consume', ent!.id, { guildId: created.id }, tx);
+        }
+        return created;
+      });
       return this.publicView(g.id);
     } catch (e) {
       return this.mapCreateError(e, me);
