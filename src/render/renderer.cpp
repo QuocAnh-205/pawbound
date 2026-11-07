@@ -964,7 +964,7 @@ struct Renderer::Impl {
     const glm::vec3 up = std::abs(L.y) > 0.99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
     const glm::mat4 lv = glm::lookAt(glm::vec3(0.0f), -L, up);
     const float r = sp.shadow_radius;
-    glm::vec3 c = glm::vec3(lv * glm::vec4(sp.focus, 1.0f));
+    glm::vec3 c = glm::vec3(lv * glm::vec4(sp.use_shadow_center ? sp.shadow_center : sp.focus, 1.0f));
     const float texel = 2.0f * r / static_cast<float>(settings.shadow_map_size);
     c.x = std::floor(c.x / texel) * texel;  // bám lưới texel -> bóng không rung khi camera di chuyển
     c.y = std::floor(c.y / texel) * texel;
@@ -1011,7 +1011,8 @@ struct Renderer::Impl {
     FrameUniforms u{};
     u.view_proj = view_proj;
     u.light_view_proj = light_vp;
-    u.camera_back_dir = glm::vec4(glm::normalize(sp.camera_back_dir), 0.0f);
+    // w = 0: orthographic (xyz = hướng tới camera); w = 1: phối cảnh (xyz = vị trí camera)
+    u.camera_back_dir = sp.perspective ? glm::vec4(sp.camera_pos, 1.0f) : glm::vec4(glm::normalize(sp.camera_back_dir), 0.0f);
     u.sun_dir = glm::vec4(glm::normalize(sp.sun_dir), sp.sun_intensity);
     u.sun_color = glm::vec4(sp.sun_color, 0.0f);
     u.sky_color = glm::vec4(sp.sky_color, sp.ambient_intensity);

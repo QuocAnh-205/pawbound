@@ -66,7 +66,7 @@ WorldView::WorldView(render::Renderer& r, world::WorldData w, std::filesystem::p
     : r_(r),
       world_(std::move(w)),
       dir_(std::move(dir)),
-      streamer_(world_.chunks_x, world_.chunks_z, to_m(world_.chunk_size), 2, 3) {
+      streamer_(world_.chunks_x, world_.chunks_z, to_m(world_.chunk_size), 3, 4) {  // 3D: tầm nhìn ~190 m
   tex_ground_ = r_.upload_texture(geom::make_checker(128, 16, 0xFFFFFFFFu, 0xEDEDEDFFu), true, "world/ground");
   tex_wall_ = r_.upload_texture(make_window_texture(), true, "world/window_wall");
   tex_road_ = r_.upload_texture(geom::make_checker(64, 8, 0xFFFFFFFFu, 0xF2F2F2FFu), true, "world/road");

@@ -98,3 +98,41 @@ TEST_CASE("image: ghi PNG rồi đọc lại khớp từng pixel") {
   CHECK_FALSE(bad.valid());
   CHECK_FALSE(err.empty());
 }
+
+TEST_CASE("camera 3D: goc thu ba sau lung, goc thu nhat o mat, doi bang V, pitch co gioi han") {
+  GameCamera cam;  // mặc định: góc thứ ba
+  CHECK(cam.mode() == CameraMode::ThirdPerson);
+  CHECK(cam.perspective());
+  cam.set_target({100, 0, 100}, true);
+  const glm::vec3 p3 = cam.position();
+  CHECK(glm::distance(p3, cam.pivot()) == doctest::Approx(cam.distance()).epsilon(0.01));
+  // camera ở phía sau theo hướng "tiến" (nhìn về phía trước nhân vật)
+  CHECK(glm::dot(glm::vec3(p3.x - 100, 0, p3.z - 100), cam.ground_forward()) < 0.0f);
+  // Vật phía trước thấy được, vật sau lưng camera bị loại
+  const auto f = Frustum::from_matrix(cam.proj(16.0f / 9.0f) * cam.view());
+  const glm::vec3 ahead = glm::vec3(100, 0, 100) + cam.ground_forward() * 30.0f;
+  CHECK(f.intersects(ahead - glm::vec3(1), ahead + glm::vec3(1)));
+  const glm::vec3 behind = glm::vec3(100, 0, 100) - cam.ground_forward() * 60.0f;
+  CHECK_FALSE(f.intersects(behind - glm::vec3(1), behind + glm::vec3(1)));
+  // Không chui xuống đất
+  cam.set_ground([](float, float) { return 50.0f; });
+  CHECK(cam.position().y >= 50.0f);
+  cam.set_ground(nullptr);
+  // Góc thứ nhất: camera ở mắt, gần mục tiêu
+  cam.toggle_person();
+  CHECK(cam.mode() == CameraMode::FirstPerson);
+  CHECK(glm::distance(cam.position(), glm::vec3(100, 0, 100)) < 1.0f);
+  cam.toggle_person();
+  CHECK(cam.mode() == CameraMode::ThirdPerson);
+  // Nhìn bằng chuột: pitch bị kẹp, yaw đổi hướng tiến
+  for (int i = 0; i < 100; ++i) cam.look(0, 10);
+  CHECK(cam.pitch_deg() <= 75.0f);
+  const glm::vec3 f0 = cam.ground_forward();
+  cam.look(90, 0);
+  CHECK(std::abs(glm::dot(f0, cam.ground_forward())) < 1e-4f);
+  // Chế độ 2.5D không bị chuột ảnh hưởng
+  Camera25D iso;
+  const float y0 = iso.yaw_deg();
+  iso.look(30, 30);
+  CHECK(iso.yaw_deg() == doctest::Approx(y0));
+}

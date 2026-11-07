@@ -25,7 +25,8 @@ class GameSession {
               const sim::WorldSimConfig& world_cfg);
 
   // pressed_keys: tên phím SDL vừa nhấn trong tick (1..6, G, Z...).
-  void fixed_update(const InputState& in, const std::vector<std::string>& pressed_keys, const geom::Camera25D& cam,
+  void set_hide_player(bool h) { hide_player_ = h; }  // góc thứ nhất: không vẽ thân mình
+  void fixed_update(const InputState& in, const std::vector<std::string>& pressed_keys, const geom::GameCamera& cam,
                     float dt);
   void update_visual(float dt);
   void append_draws(float alpha, bool debug, std::vector<render::DrawItem>& out);
@@ -90,6 +91,7 @@ class GameSession {
   std::string prompt_;
   int target_ = -1;
   render::MeshHandle marker_;
+  bool hide_player_ = false;
 };
 
 }  // namespace pb::client

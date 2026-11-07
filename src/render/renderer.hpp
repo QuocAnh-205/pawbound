@@ -66,6 +66,10 @@ struct SceneParams {
   glm::mat4 view{1.0f};
   glm::mat4 proj{1.0f};
   glm::vec3 camera_back_dir{0, 1, 0};
+  glm::vec3 camera_pos{0.0f};   // dùng khi perspective = true
+  bool perspective = false;      // camera 3D phối cảnh (góc thứ nhất/thứ ba)
+  glm::vec3 shadow_center{0.0f}; // tâm vùng bóng đổ (3D: lệch về phía trước tầm nhìn)
+  bool use_shadow_center = false;
   glm::vec3 sun_dir{0.4f, 0.8f, 0.3f};  // hướng tới mặt trời
   glm::vec3 sun_color{1.0f, 0.96f, 0.9f};
   float sun_intensity = 3.0f;

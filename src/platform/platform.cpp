@@ -84,6 +84,10 @@ FrameEvents Platform::pump_events() {
       case SDL_EVENT_MOUSE_WHEEL:
         ev.wheel += e.wheel.y;
         break;
+      case SDL_EVENT_MOUSE_MOTION:
+        ev.mouse_dx += e.motion.xrel;
+        ev.mouse_dy += e.motion.yrel;
+        break;
       case SDL_EVENT_MOUSE_BUTTON_DOWN:
         if (e.button.button == SDL_BUTTON_LEFT) ev.mouse_left_pressed = true;
         if (e.button.button == SDL_BUTTON_RIGHT) ev.mouse_right_pressed = true;
@@ -151,5 +155,9 @@ void Platform::set_text_input(bool on) {
   else SDL_StopTextInput(window_);
 }
 bool Platform::text_input_active() const { return SDL_TextInputActive(window_); }
+void Platform::set_relative_mouse(bool on) {
+  if (SDL_GetWindowRelativeMouseMode(window_) != on) SDL_SetWindowRelativeMouseMode(window_, on);
+}
+bool Platform::window_focused() const { return (SDL_GetWindowFlags(window_) & SDL_WINDOW_INPUT_FOCUS) != 0; }
 
 }  // namespace pb::platform

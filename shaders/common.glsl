@@ -8,7 +8,7 @@
 layout(set = 0, binding = 0, std140) uniform FrameUniforms {
   mat4 view_proj;
   mat4 light_view_proj;
-  vec4 camera_back_dir;  // xyz: hướng từ cảnh tới camera (ortho)
+  vec4 camera_back_dir;  // w=0: xyz hướng từ cảnh tới camera (ortho); w=1: xyz vị trí camera (phối cảnh)
   vec4 sun_dir;          // xyz: hướng TỚI mặt trời; w: cường độ
   vec4 sun_color;        // rgb
   vec4 sky_color;        // rgb ambient từ trên; w: cường độ ambient

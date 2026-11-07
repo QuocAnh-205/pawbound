@@ -41,6 +41,7 @@ struct FrameEvents {
   float wheel = 0.0f;             // cuộn chuột (dương = lên)
   bool mouse_left_pressed = false;
   bool mouse_right_pressed = false;
+  float mouse_dx = 0, mouse_dy = 0;  // chuyển động chuột (pixel) trong frame — dùng để xoay camera 3D
   std::string text;     // UTF-8 gõ được trong frame (chỉ khi đang bật text input)
   int backspaces = 0;   // số lần Backspace (kể cả giữ phím lặp)
   std::vector<TouchEvent> touches;
@@ -67,6 +68,9 @@ class Platform {
   void drawable_size(int& w, int& h) const;
   // Bật/tắt nhập văn bản (IME, bàn phím ảo trên điện thoại)
   void set_text_input(bool on);
+  // Khóa/ẩn con trỏ để xoay camera bằng chuột (chế độ 3D)
+  void set_relative_mouse(bool on);
+  [[nodiscard]] bool window_focused() const;
   [[nodiscard]] bool text_input_active() const;
 
  private:

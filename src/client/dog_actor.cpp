@@ -64,7 +64,7 @@ void DogActor::build_fallback(render::Renderer& r) {
   gpu_.scale = 1.0f;
 }
 
-void DogActor::fixed_update(const InputState& in, const geom::Camera25D& cam, const sim::CollisionWorld& world,
+void DogActor::fixed_update(const InputState& in, const geom::GameCamera& cam, const sim::CollisionWorld& world,
                             float dt, float speed_mult, bool allow_sprint, bool frozen) {
   prev_ = cur_;
   sim::MotorInput mi;

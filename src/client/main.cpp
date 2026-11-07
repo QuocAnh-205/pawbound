@@ -59,6 +59,7 @@ struct Args {
   std::string weather, event;  // ép thời tiết/sự kiện lúc bắt đầu (QA)
   std::string connect, ticket;  // chế độ online: host:port + session ticket (chuỗi hoặc @file)
   std::string say;              // test: tự gửi một tin chat gần sau khi vào server
+  std::string camera = "third"; // third | first | iso (2.5D cũ)
   float zoom = 0.0f;      // 0 = mặc định
   float at_x = -1, at_z = -1;  // vị trí bắt đầu (m), -1 = spawn
   bool ok = true;
@@ -94,6 +95,7 @@ Args parse_args(int argc, char** argv) {
     else if (s == "--connect") a.connect = next();
     else if (s == "--ticket") a.ticket = next();
     else if (s == "--say") a.say = next();
+    else if (s == "--camera") a.camera = next();
     else if (s == "--event") a.event = next();
     else if (s == "--debug") a.debug = true;
     else if (s == "--at") {
@@ -215,6 +217,10 @@ class ClientApp final : public pb::Application {
       scene_ = pb::client::build_test_scene(*renderer_, args_.asset_root);
     }
     camera_.set_target(scene_.focus, true);
+    camera_.set_mode(args_.camera == "first" ? pb::geom::CameraMode::FirstPerson
+                     : args_.camera == "iso" ? pb::geom::CameraMode::Isometric
+                                             : pb::geom::CameraMode::ThirdPerson);
+    if (world_) camera_.set_ground([this](float x, float z) { return world_->data().height_at(x, z); });
     if (args_.zoom > 0) camera_.add_zoom(args_.zoom - camera_.zoom());
     pb::log::info("client", "renderer sẵn sàng trên {} — {}", renderer_->device_name(),
                   world_ ? "world procedural" : "test scene");
@@ -251,6 +257,18 @@ class ClientApp final : public pb::Application {
     }
     for (int k : ev.keys_pressed) pressed_.insert(SDL_GetKeyName(static_cast<SDL_Keycode>(k)));
     if (ev.mouse_left_pressed) pressed_.insert("__mouse_left");
+    // Camera 3D: chuột xoay góc nhìn (giữ Alt để hiện con trỏ), V đổi góc thứ nhất/thứ ba
+    {
+      const bool typing = net_ && net_->typing();
+      const bool mouse_look = camera_.perspective() && !typing && !args_.hidden && platform_->window_focused() &&
+                              !platform_->key_down(SDL_SCANCODE_LALT) && !pb::client::is_mobile();
+      platform_->set_relative_mouse(mouse_look);
+      if (mouse_look) camera_.look(-ev.mouse_dx * 0.15f, ev.mouse_dy * 0.12f);
+      const glm::vec2 tl = touch_.take_look();
+      camera_.look(-tl.x * 180.0f, tl.y * 110.0f);
+      for (int k : ev.keys_pressed)
+        if (k == SDLK_V && !typing) camera_.toggle_person();
+    }
     for (int k : ev.keys_pressed) {
       if (!session_ && k == SDLK_Q) camera_.rotate_step(-1);
       if (!session_ && k == SDLK_E) camera_.rotate_step(+1);
@@ -386,8 +404,20 @@ class ClientApp final : public pb::Application {
     sp.view = camera_.view();
     sp.proj = camera_.proj(aspect_);
     sp.camera_back_dir = camera_.back_dir();
+    sp.camera_pos = camera_.position();
+    sp.perspective = camera_.perspective();
     sp.focus = scene_.focus;
-    sp.cutaway_radius = 4.0f;
+    // Góc thứ nhất: không cần làm mờ vật che; góc thứ ba: làm mờ tường giữa camera và con chó
+    sp.cutaway_radius = camera_.mode() == pb::geom::CameraMode::FirstPerson ? 0.0f
+                        : camera_.mode() == pb::geom::CameraMode::ThirdPerson ? 2.5f : 4.0f;
+    if (sp.perspective) {  // 3D nhìn xa: vùng bóng rộng hơn, lệch về phía trước tầm nhìn
+      sp.shadow_radius = 48.0f;
+      sp.use_shadow_center = true;
+      sp.shadow_center = scene_.focus + camera_.ground_forward() * 22.0f;
+    }
+    const bool hide_self = camera_.mode() == pb::geom::CameraMode::FirstPerson;
+    if (session_) session_->set_hide_player(hide_self);
+    if (net_) net_->set_hide_self(hide_self);
     if (world_) {
       draw_items_.clear();
       sp.point_lights.clear();
@@ -416,6 +446,7 @@ class ClientApp final : public pb::Application {
       } else {
         apply_time_of_day(sp, time_of_day_);
       }
+      if (sp.perspective) sp.fog_density = std::max(sp.fog_density, 0.009f);
       overlay_.clear();
       if (session_) session_->draw_hud(overlay_, width_, height_, time_of_day_);
       if (net_) net_->draw_hud(overlay_, width_, height_);
@@ -510,7 +541,7 @@ class ClientApp final : public pb::Application {
   pb::ClientConfig cfg_;
   std::unique_ptr<pb::platform::Platform> platform_;
   std::unique_ptr<pb::render::Renderer> renderer_;
-  pb::geom::Camera25D camera_;
+  pb::geom::GameCamera camera_{pb::geom::CameraMode::ThirdPerson};
   pb::client::TestScene scene_;
   std::unique_ptr<pb::client::WorldView> world_;
   pb::sim::DogCatalog catalog_;

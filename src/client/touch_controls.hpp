@@ -31,6 +31,7 @@ class TouchControls {
   // Phím vừa nhấn trong frame (lấy xong thì xóa)
   std::vector<std::string> take_pressed();
   [[nodiscard]] float take_zoom();  // >0 phóng to
+  glm::vec2 take_look();            // vuốt 1 ngón ở vùng trống: xoay camera (đơn vị: phần chiều rộng màn hình)
   void draw(render::Overlay& o, int w, int h) const;
   [[nodiscard]] const std::vector<TouchButton>& buttons() const { return buttons_; }
 
@@ -46,6 +47,8 @@ class TouchControls {
   std::vector<std::string> pressed_;
   glm::vec2 move_{0.0f};
   float zoom_ = 0, pinch_dist_ = 0;
+  glm::vec2 look_{0.0f};
+  std::map<uint64_t, glm::vec2> last_free_;
   bool used_ = false;
   float aspect_ = 16.0f / 9.0f;
 };

@@ -15,6 +15,7 @@ TouchControls::TouchControls() {
       {"NE", "K", 0.67f, 0.88f, 0.060f},      {"NGUI", "F", 0.66f, 0.72f, 0.060f, true},
       {"NHAT", "G", 0.69f, 0.57f, 0.055f},    {"NGHI", "Z", 0.81f, 0.47f, 0.055f},
       {"<", "Q", 0.58f, 0.09f, 0.050f},       {">", "R", 0.66f, 0.09f, 0.050f},
+      {"CAM", "V", 0.81f, 0.09f, 0.050f},
       {"CHAT", "Return", 0.93f, 0.09f, 0.055f},
   };
   for (int i = 0; i < 6; ++i)
@@ -68,6 +69,15 @@ void TouchControls::update(const std::vector<platform::TouchEvent>& events, floa
       free.push_back({f.pos.x * aspect, f.pos.y});
     }
   }
+  // Một ngón ở vùng trống -> xoay camera theo độ dịch chuyển
+  std::map<uint64_t, glm::vec2> now_free;
+  for (const auto& [id, f] : fingers_)
+    if (f.button == -1) now_free[id] = f.pos;
+  if (now_free.size() == 1) {
+    const auto& [id, p] = *now_free.begin();
+    if (auto it = last_free_.find(id); it != last_free_.end()) look_ += p - it->second;
+  }
+  last_free_ = now_free;
   // Chụm 2 ngón (không phải joystick/nút) -> zoom
   if (free.size() == 2) {
     const float d = glm::distance(free[0], free[1]);
@@ -82,6 +92,12 @@ std::vector<std::string> TouchControls::take_pressed() {
   std::vector<std::string> out;
   out.swap(pressed_);
   return out;
+}
+
+glm::vec2 TouchControls::take_look() {
+  const glm::vec2 l = look_;
+  look_ = glm::vec2(0.0f);
+  return l;
 }
 
 float TouchControls::take_zoom() {

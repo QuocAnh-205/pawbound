@@ -25,7 +25,7 @@ class DogActor {
 
   // Một tick mô phỏng; input theo camera (WASD tương đối hướng nhìn).
   // speed_mult: hệ số từ sinh tồn (mệt); allow_sprint: đủ thể lực; frozen: đang gục/nghỉ (không di chuyển).
-  void fixed_update(const InputState& in, const geom::Camera25D& cam, const sim::CollisionWorld& world, float dt,
+  void fixed_update(const InputState& in, const geom::GameCamera& cam, const sim::CollisionWorld& world, float dt,
                     float speed_mult = 1.0f, bool allow_sprint = true, bool frozen = false);
   void teleport(glm::vec3 pos);
   // Chế độ online: hiển thị theo trạng thái server (không chạy motor cục bộ).

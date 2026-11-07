@@ -143,7 +143,7 @@ void NetGame::poll() {
   }
 }
 
-void NetGame::fixed_update(const InputState& in, const geom::Camera25D& cam, float dt) {
+void NetGame::fixed_update(const InputState& in, const geom::GameCamera& cam, float dt) {
   clock_ += dt;
   poll();
   if (!welcomed_ || lost_) return;
@@ -243,7 +243,8 @@ void NetGame::update_visual(float dt) {
 }
 
 void NetGame::append_draws(bool debug, std::vector<render::DrawItem>& out) {
-  for (auto& [id, d] : dogs_) d->append_draws(1.0f, debug, out);
+  for (auto& [id, d] : dogs_)
+    if (!(hide_self_ && id == player_id_)) d->append_draws(1.0f, debug, out);
   npc_view_->append(npc_frame_, 1.0f, debug, out);
 }
 

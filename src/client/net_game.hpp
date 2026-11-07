@@ -25,7 +25,7 @@ class NetGame {
   ~NetGame();
   bool connect(const std::string& host, uint16_t port, const std::string& ticket, const std::string& world_hash,
                std::string& error);
-  void fixed_update(const InputState& in, const geom::Camera25D& cam, float dt);
+  void fixed_update(const InputState& in, const geom::GameCamera& cam, float dt);
   void update_visual(float dt);
   void append_draws(bool debug, std::vector<render::DrawItem>& out);
   void draw_hud(render::Overlay& o, int w, int h) const;
@@ -42,6 +42,7 @@ class NetGame {
   [[nodiscard]] bool typing() const { return typing_; }
   // Người chơi đã chặn (id số tài khoản, lấy từ Backend): tin chat gần của họ bị ẩn.
   void set_blocked_users(std::set<uint64_t> ids) { blocked_ = std::move(ids); }
+  void set_hide_self(bool h) { hide_self_ = h; }  // góc thứ nhất
 
  private:
   struct Timed {
@@ -76,6 +77,7 @@ class NetGame {
   std::string draft_;
   std::deque<std::pair<double, std::string>> chat_;
   std::set<uint64_t> blocked_;
+  bool hide_self_ = false;
 };
 
 }  // namespace pb::client

@@ -64,7 +64,7 @@ GameSession::GameSession(render::Renderer& r, const sim::GameplayConfig& cfg, co
   }
   inv_.add(cfg, "water_bottle", 1);
   marker_ = r.upload_mesh(geom::make_cylinder(0.12f, 6.0f, 8), "session/sniff_marker");
-  say("WASD move, SHIFT sprint, SPACE jump, E interact, J bite, K dodge, F sniff, Z rest");
+  say("WASD move, MOUSE look, V camera 1st/3rd, SHIFT sprint, SPACE jump, E interact, J bite, F sniff, Z rest");
   log::info("game", "session: {} nguồn tài nguyên, {} nơi trú ẩn, {} NPC tập", nodes_.size(), shelters_.size(), npcs_.size());
 }
 
@@ -120,7 +120,7 @@ void GameSession::interact(const std::string& key) {
 }
 
 void GameSession::fixed_update(const InputState& in_raw, const std::vector<std::string>& pressed,
-                               const geom::Camera25D& cam, float dt) {
+                               const geom::GameCamera& cam, float dt) {
   time_ += dt;
   InputState in = in_raw;
   const auto& sc = cfg_.survival;
@@ -284,7 +284,7 @@ void GameSession::update_visual(float dt) {
 }
 
 void GameSession::append_draws(float alpha, bool debug, std::vector<render::DrawItem>& out) {
-  player_->append_draws(alpha, debug, out);
+  if (!hide_player_) player_->append_draws(alpha, debug, out);
   npc_view_->append(npc_mgr_->npcs(), alpha, debug, out);
   for (auto& n : npcs_)
     if (n.sv.life == sim::LifeState::Alive || std::fmod(n.respawn_timer, 0.5f) < 0.25f) n.actor->append_draws(alpha, debug, out);

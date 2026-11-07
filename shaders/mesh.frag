@@ -67,7 +67,7 @@ void main() {
 
   // Cutaway 2.5D: làm mờ (dither) phần hình học nằm giữa camera và nhân vật, cao hơn nhân vật.
   if ((flags & FLAG_CUTAWAY) != 0u && frame.focus.w > 0.0) {
-    vec3 cam = frame.camera_back_dir.xyz;
+    vec3 cam = frame.camera_back_dir.w > 0.5 ? normalize(frame.camera_back_dir.xyz - frame.focus.xyz) : frame.camera_back_dir.xyz;
     vec3 d = v_world - frame.focus.xyz;
     float along = dot(d, cam);
     float perp = length(d - along * cam);
@@ -96,7 +96,7 @@ void main() {
   vec3 B = cross(Ng, T) * v_tangent.w;
   vec3 tn = texture(textures[draw.tex.y], v_uv).xyz * 2.0 - 1.0;
   vec3 N = normalize(mat3(T, B, Ng) * tn);
-  vec3 V = normalize(frame.camera_back_dir.xyz);
+  vec3 V = frame.camera_back_dir.w > 0.5 ? normalize(frame.camera_back_dir.xyz - v_world) : normalize(frame.camera_back_dir.xyz);
 
   vec3 color = vec3(0.0);
   // Mặt trời / mặt trăng
@@ -119,8 +119,9 @@ void main() {
   color += ambient * albedo * ao * (1.0 - metallic * 0.5);
   color += albedo * draw.mat_params.z;  // emissive
 
-  // Sương mù theo độ cao + khoảng cách tới tâm cảnh (2.5D)
-  float fog = 1.0 - exp(-frame.fog_color.w * length(v_world.xz - frame.focus.xz));
+  // Sương mù theo khoảng cách: 3D tính từ camera (che rìa thế giới), 2.5D từ tâm cảnh
+  float fog_d = frame.camera_back_dir.w > 0.5 ? length(v_world - frame.camera_back_dir.xyz) : length(v_world.xz - frame.focus.xz);
+  float fog = 1.0 - exp(-frame.fog_color.w * fog_d);
   color = mix(color, frame.fog_color.rgb, clamp(fog, 0.0, 1.0));
 
   out_color = vec4(color, 1.0);

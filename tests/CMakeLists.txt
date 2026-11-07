@@ -6,7 +6,7 @@ pb_set_warnings(pb_tests)
 add_test(NAME unit COMMAND pb_tests)
 
 add_test(NAME cli_version COMMAND pawbound --version)
-set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "pawbound 0\\.1\\.0")
+set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "pawbound 0\\.2\\.0")
 add_test(NAME cli_bad_command COMMAND pawbound khong-ton-tai)
 set_tests_properties(cli_bad_command PROPERTIES WILL_FAIL TRUE)
 
