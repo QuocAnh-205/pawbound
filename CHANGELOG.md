@@ -2,6 +2,19 @@
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/). Phiên bản theo SemVer; giao thức mạng có số riêng (`kProtocolVersion`).
 
+## [0.2.0-test1] — 2026-11-07 — Đồ họa 3D + gói test chơi chung
+### Thay đổi
+- **Đồ họa 3D:** camera phối cảnh thay cho camera 2.5D cố định. Góc nhìn **thứ ba** (mặc định, sau lưng con chó, xoay tự do bằng chuột, cuộn để đổi khoảng cách) và **thứ nhất** (mắt con chó, ẩn thân mình). Phím **V** đổi góc; giữ Alt để hiện con trỏ; Q/R xoay 45°. Chế độ 2.5D cũ vẫn còn qua `--camera iso`.
+- Shader: phản xạ và sương mù tính theo vị trí camera; sương mù chân trời che rìa thế giới; vùng bóng đổ rộng hơn, lệch về phía trước tầm nhìn; làm mờ tường chắn giữa camera và con chó ở góc thứ ba.
+- Nạp chunk xa hơn (bán kính 3 chunk ≈ 190 m).
+- Cảm ứng: vuốt vùng trống để xoay camera, nút CAM đổi góc.
+- Gói Windows có thêm `Mo-May-Chu.bat` (mở máy chủ, tạo vé, tự copy) và `Vao-Choi-Online.bat` (nhập IP + dán vé).
+- Test: camera 3D (vị trí sau lưng, frustum, không chui xuống đất, đổi góc, giới hạn pitch).
+
+### Đã biết
+- Model chó/nhà còn đơn giản, nhìn gần ở 3D lộ rõ hơn.
+- Chơi chung chưa lưu tiến trình (chế độ dev không có backend). Chưa thử qua Tailscale giữa hai máy thật.
+
 ## [0.1.0-rc1] — 2026-11-07 — Release candidate (alpha thử nghiệm)
 Trạng thái chi tiết: `docs/phases/phase-15-report.md`. **Không** phải bản production: chưa có máy chủ công khai, chưa có thanh toán thật, chưa có bản điện thoại.
 

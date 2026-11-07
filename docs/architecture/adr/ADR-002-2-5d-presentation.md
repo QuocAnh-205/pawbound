@@ -1,6 +1,6 @@
 # ADR-002 — Trình bày đồ họa 2.5D
 
-- **Trạng thái:** Accepted
+- **Trạng thái:** Bị thay thế một phần bởi [ADR-008](ADR-008-3d-camera.md) (2026-11-07): camera mặc định giờ là 3D; chế độ 2.5D vẫn giữ làm tùy chọn.
 - **Ngày:** 2026-11-06
 - **Người quyết định:** Chủ dự án (yêu cầu trực tiếp: "đồ họa 2,5d thôi, đừng 3d hay 2d")
 

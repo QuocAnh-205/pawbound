@@ -1,8 +1,8 @@
 # PAWBOUND
 
-Game mô phỏng cuộc sống của chó trong thành phố mở, đồ họa **2.5D**, multiplayer (load test 30 người/server **đạt trên máy dev**, chưa đo trên máy chủ thật).
+Game mô phỏng cuộc sống của chó trong thành phố mở, đồ họa **3D** (góc nhìn thứ ba / thứ nhất; chế độ 2.5D cũ vẫn còn), multiplayer (load test 30 người/server **đạt trên máy dev**, chưa đo trên máy chủ thật).
 
-**Phiên bản: 0.1.0-rc1 — bản thử nghiệm (alpha).** Windows x64 + server Linux đã kiểm thử; Android (APK, Android 13+, Vulkan 1.3) đã build nhưng **chưa thử trên điện thoại thật**; chưa có máy chủ online công khai, chưa có thanh toán thật. Xem [báo cáo phát hành](docs/phases/phase-15-report.md).
+**Phiên bản: 0.2.0-test1 — bản thử nghiệm (alpha), đồ họa 3D.** Windows x64 + server Linux đã kiểm thử; Android (APK, Android 13+, Vulkan 1.3) đã build nhưng **chưa thử trên điện thoại thật**; chưa có máy chủ online công khai, chưa có thanh toán thật. Xem [báo cáo phát hành](docs/phases/phase-15-report.md).
 Engine tự viết bằng C++20 + Vulkan 1.3; thế giới sinh hoàn toàn bằng code theo seed.
 
 ## Trạng thái
@@ -39,7 +39,7 @@ cd D:\Choi
 .\build\win-debug\bin\pawbound.exe world validate out\world_demo
 .\build\win-debug\bin\pawbound_client.exe --world out\world_demo
 ```
-Điều khiển: WASD đi, Shift nước rút, Ctrl đi bộ, Space nhảy, E tương tác, G lấy đồ, 1–6 dùng đồ, Z nghỉ, J cắn, K né, F (giữ) đánh hơi, Q/R xoay camera, cuộn chuột zoom, T đổi giờ, F3 debug, F12 chụp màn hình, Enter chat (online), Esc thoát.
+Điều khiển: chuột xoay góc nhìn (giữ Alt để hiện con trỏ), V đổi góc thứ nhất/thứ ba, cuộn chuột kéo camera xa/gần, WASD đi, Shift nước rút, Ctrl đi bộ, Space nhảy, E tương tác, G lấy đồ, 1–6 dùng đồ, Z nghỉ, J cắn, K né, F (giữ) đánh hơi, Q/R xoay camera 45°, T đổi giờ, F3 debug, F12 chụp màn hình, Enter chat (online), Esc thoát.
 
 ## Tài liệu
 [Quy tắc dự án](docs/project-rules.md) · [Thiết kế game](docs/architecture/game-design-document.md) · [Kiến trúc](docs/architecture/technical-architecture.md) · [ADR](docs/architecture/adr/) · [Asset & giấy phép](docs/art-pipeline/asset-pipeline.md) · [Dependencies](docs/operations/dependencies.md) · [Backend](docs/backend/backend.md) · [Xã hội](docs/social/social.md) · [Thanh toán](docs/payments/payments.md) · [Gameplay nâng cao](docs/gameplay/advanced-events.md) · [Vận hành & phát hành](docs/operations/release-runbook.md) · [Bảo mật](docs/security/security-review.md) · [Giấy phép bên thứ ba](THIRD_PARTY_LICENSES.md) · [CHANGELOG](CHANGELOG.md)
