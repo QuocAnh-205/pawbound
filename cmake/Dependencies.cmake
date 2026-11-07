@@ -75,7 +75,9 @@ endif()
 # libsodium 1.0.22 (ISC) — chỉ dùng để XÁC MINH chữ ký Ed25519 của session ticket (không tự viết crypto).
 # Windows/MinGW: gói dựng sẵn chính thức; chữ ký minisign đã xác minh bằng tools/verify_minisign.js.
 # Linux: dùng libsodium-dev của hệ thống.
-if(MINGW)
+if(NOT PB_BUILD_SERVER AND NOT PB_BUILD_TESTS)
+  # Client không cần libsodium (chỉ server/tool xác minh/ký ticket)
+elseif(MINGW)
   pb_declare_sources(sodium "libsodium-1.0.22-mingw.tar.gz"
     "https://github.com/jedisct1/libsodium/releases/download/1.0.22-RELEASE/libsodium-1.0.22-mingw.tar.gz"
     1d99e0afaf27bce664249232e9dc628ae6bb7b49f0ab53ad6db372b028a35d9d)

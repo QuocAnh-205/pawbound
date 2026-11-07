@@ -130,6 +130,14 @@ bool GameServer::init(std::string& error) {
   if (netsim_.active())
     log::warn("server", "MÔ PHỎNG MẠNG XẤU: mất {:.0f}% trễ {:.0f}±{:.0f} ms (chỉ dùng để test)", cfg_.netsim.loss * 100,
               cfg_.netsim.latency_ms, cfg_.netsim.jitter_ms);
+  if (cfg_.health_port) {
+    std::string herr;
+    if (!health_.start(cfg_.health_bind, cfg_.health_port, herr)) {
+      error = herr;
+      return false;
+    }
+    log::info("server", "health/metrics: http://{}:{}/health , /metrics", cfg_.health_bind, cfg_.health_port);
+  }
   if (!cfg_.backend_url.empty()) {
     std::string berr;
     if (!backend_.start(cfg_.backend_url, cfg_.service_token, berr)) {
@@ -538,6 +546,33 @@ void GameServer::log_metrics(bool final) {
   metrics_.pkts_in = metrics_.pkts_out = metrics_.bytes_in = metrics_.bytes_out = 0;
 }
 
+void GameServer::publish_health() {
+  // Prometheus text format. Không chứa dữ liệu cá nhân (chỉ số đếm/thời gian).
+  const auto& t = metrics_.tick_ms;
+  size_t thieves = capture_ ? capture_->thieves().size() : 0, captured = 0, loading = 0;
+  for (const auto& [id, p] : players_) {
+    captured += p.cap.state == sim::CaptureState::Captured || p.cap.state == sim::CaptureState::RescueInProgress;
+    loading += !p.loaded;
+  }
+  health_.publish(std::format(
+      "# TYPE pawbound_players_online gauge\npawbound_players_online {}\n"
+      "# TYPE pawbound_players_loading gauge\npawbound_players_loading {}\n"
+      "# TYPE pawbound_players_captured gauge\npawbound_players_captured {}\n"
+      "# TYPE pawbound_npcs gauge\npawbound_npcs {}\n"
+      "# TYPE pawbound_thieves gauge\npawbound_thieves {}\n"
+      "# TYPE pawbound_tick_ms gauge\npawbound_tick_ms{{quantile=\"0.5\"}} {:.3f}\npawbound_tick_ms{{quantile=\"0.95\"}} {:.3f}\npawbound_tick_ms{{quantile=\"0.99\"}} {:.3f}\n"
+      "# TYPE pawbound_ticks_total counter\npawbound_ticks_total {}\n"
+      "# TYPE pawbound_rejected_total counter\npawbound_rejected_total {}\n"
+      "# TYPE pawbound_kicked_total counter\npawbound_kicked_total {}\n"
+      "# TYPE pawbound_malformed_total counter\npawbound_malformed_total {}\n"
+      "# TYPE pawbound_chat_total counter\npawbound_chat_total {}\n"
+      "# TYPE pawbound_backend_pending gauge\npawbound_backend_pending {}\n"
+      "# TYPE pawbound_rss_mb gauge\npawbound_rss_mb {:.1f}\n"
+      "# TYPE pawbound_uptime_seconds counter\npawbound_uptime_seconds {:.0f}\n",
+      online_players(), loading, captured, npcs_->npcs().size(), thieves, pct(t, 0.5), pct(t, 0.95), pct(t, 0.99), tick_,
+      metrics_.rejected, metrics_.kicked, metrics_.malformed, chat_count_, backend_.enabled() ? backend_.pending() : 0, rss_mb(), now_), now_);
+}
+
 void GameServer::post_command(std::string line) {
   std::scoped_lock l(cmd_mu_);
   cmds_.push_back(std::move(line));
@@ -655,6 +690,10 @@ int GameServer::run(std::atomic<bool>& stop) {
         send_heartbeat(false);
         next_heartbeat_ = now_ + cfg_.heartbeat_interval_s;
       }
+    }
+    if (cfg_.health_port && now_ >= next_health_) {
+      next_health_ = now_ + 1.0;
+      publish_health();
     }
     netsim_.pump(now_);
     enet_host_flush(host_);

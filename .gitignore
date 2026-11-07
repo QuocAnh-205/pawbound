@@ -26,3 +26,17 @@ node_modules/
 
 # Khóa ký ticket (DEV) — bí mật
 /config/dev_keys/
+
+# Bí mật triển khai docker
+/docker/secrets/
+/docker/stack.env
+/dist/
+
+# Android build
+/android/.gradle/
+/android/app/build/
+/android/app/.cxx/
+/android/local.properties
+*.jks
+*.keystore
+/android/build/

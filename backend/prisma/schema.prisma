@@ -2,7 +2,9 @@
 // Quy ước: khóa chính UUID; numericId (BigInt tự tăng) cho game server (ticket dùng id số u64).
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // native = máy dev; debian-openssl-3.0.x = image docker (node:24-bookworm-slim)
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {

@@ -1,6 +1,8 @@
 # PAWBOUND
 
-Game mô phỏng cuộc sống của chó trong thành phố mở, đồ họa **2.5D**, multiplayer (mục tiêu benchmark 20–30 người/server, **chưa đo**).
+Game mô phỏng cuộc sống của chó trong thành phố mở, đồ họa **2.5D**, multiplayer (load test 30 người/server **đạt trên máy dev**, chưa đo trên máy chủ thật).
+
+**Phiên bản: 0.1.0-rc1 — bản thử nghiệm (alpha).** Windows x64 + server Linux đã kiểm thử; Android (APK, Android 13+, Vulkan 1.3) đã build nhưng **chưa thử trên điện thoại thật**; chưa có máy chủ online công khai, chưa có thanh toán thật. Xem [báo cáo phát hành](docs/phases/phase-15-report.md).
 Engine tự viết bằng C++20 + Vulkan 1.3; thế giới sinh hoàn toàn bằng code theo seed.
 
 ## Trạng thái
@@ -21,7 +23,7 @@ Engine tự viết bằng C++20 + Vulkan 1.3; thế giới sinh hoàn toàn bằ
 | 12 | Bạn bè, chặn, party, guild (ma trận quyền), chat global/party/guild + chat gần trong game | PARTIAL (client chưa có UI xã hội) |
 | 13 | Thanh toán MOCK phí lập bang 100.000 VND (webhook ký, idempotent, sổ cái bất biến), ví & cosmetic | PASS (chỉ mock — chưa có cổng thật) |
 | 14 | Kẻ trộm chó (cảnh báo → bắt → giải cứu), companion, kỹ năng có trần, nhiệm vụ, lãnh thổ MVP | PARTIAL (giải cứu đơn giản, chưa hiển thị lãnh thổ) |
-| 15 | Xem [phạm vi](docs/phases/phase-00-scope-and-acceptance.md) | Chưa làm |
+| 15 | Release candidate: Linux server, Docker, health/metrics, backup/restore, security review, đóng gói + checksum, Android APK | PARTIAL (Android chưa thử máy thật; chưa có máy chủ thật) |
 
 Báo cáo từng phase: `docs/phases/phase-XX-report.md`.
 
@@ -40,7 +42,15 @@ cd D:\Choi
 Điều khiển: WASD đi, Shift nước rút, Ctrl đi bộ, Space nhảy, E tương tác, G lấy đồ, 1–6 dùng đồ, Z nghỉ, J cắn, K né, F (giữ) đánh hơi, Q/R xoay camera, cuộn chuột zoom, T đổi giờ, F3 debug, F12 chụp màn hình, Enter chat (online), Esc thoát.
 
 ## Tài liệu
-[Quy tắc dự án](docs/project-rules.md) · [Thiết kế game](docs/architecture/game-design-document.md) · [Kiến trúc](docs/architecture/technical-architecture.md) · [ADR](docs/architecture/adr/) · [Asset & giấy phép](docs/art-pipeline/asset-pipeline.md) · [Dependencies](docs/operations/dependencies.md) · [Backend](docs/backend/backend.md) · [Xã hội](docs/social/social.md) · [Thanh toán](docs/payments/payments.md) · [Gameplay nâng cao](docs/gameplay/advanced-events.md)
+[Quy tắc dự án](docs/project-rules.md) · [Thiết kế game](docs/architecture/game-design-document.md) · [Kiến trúc](docs/architecture/technical-architecture.md) · [ADR](docs/architecture/adr/) · [Asset & giấy phép](docs/art-pipeline/asset-pipeline.md) · [Dependencies](docs/operations/dependencies.md) · [Backend](docs/backend/backend.md) · [Xã hội](docs/social/social.md) · [Thanh toán](docs/payments/payments.md) · [Gameplay nâng cao](docs/gameplay/advanced-events.md) · [Vận hành & phát hành](docs/operations/release-runbook.md) · [Bảo mật](docs/security/security-review.md) · [Giấy phép bên thứ ba](THIRD_PARTY_LICENSES.md) · [CHANGELOG](CHANGELOG.md)
+
+## Android
+```powershell
+python android/prepare_assets.py
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"; $env:GRADLE_USER_HOME = "D:\DevTools\gradle-home"
+cd android; .\gradlew.bat assembleRelease   # cần local.properties: sdk.dir=D:/DevTools/android-sdk
+```
+Điều khiển cảm ứng: joystick ảo nửa trái màn hình, nút bên phải, chụm 2 ngón để zoom.
 
 ## Ghi công asset
 Fox (prototype): model PixelMannen (CC0), rigging/animation tomkranis (CC-BY 4.0), chuyển đổi glTF @AsoboStudio & @scurest (CC-BY 4.0) — KhronosGroup/glTF-Sample-Assets.

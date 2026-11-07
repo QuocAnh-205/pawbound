@@ -8,6 +8,7 @@ add_library(pb_core STATIC
   application.cpp
   job.cpp
   text.cpp
+  crash.cpp
 )
 target_include_directories(pb_core PUBLIC
   "${CMAKE_SOURCE_DIR}/src"

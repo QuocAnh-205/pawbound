@@ -50,6 +50,21 @@ FrameEvents Platform::pump_events() {
         if (e.key.key == SDLK_BACKSPACE && SDL_TextInputActive(window_)) ev.backspaces++;
         if (!e.key.repeat) ev.keys_pressed.push_back(static_cast<int>(e.key.key));
         break;
+      case SDL_EVENT_FINGER_DOWN:
+      case SDL_EVENT_FINGER_MOTION:
+      case SDL_EVENT_FINGER_UP:
+      case SDL_EVENT_FINGER_CANCELED:
+        ev.touches.push_back({e.type == SDL_EVENT_FINGER_DOWN   ? TouchEvent::Type::Down
+                              : e.type == SDL_EVENT_FINGER_MOTION ? TouchEvent::Type::Move
+                                                                  : TouchEvent::Type::Up,
+                              static_cast<uint64_t>(e.tfinger.fingerID), e.tfinger.x, e.tfinger.y});
+        break;
+      case SDL_EVENT_DID_ENTER_BACKGROUND:
+        ev.app_background = true;
+        break;
+      case SDL_EVENT_DID_ENTER_FOREGROUND:
+        ev.app_foreground = true;
+        break;
       case SDL_EVENT_TEXT_INPUT:
         if (e.text.text) ev.text += e.text.text;
         break;

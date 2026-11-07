@@ -1,0 +1,87 @@
+# Triển khai mẫu PAWBOUND (một máy). Bí mật KHÔNG nằm trong file này: đặt trong docker/secrets/ (đã .gitignore) và docker/stack.env.
+#   docker compose -f docker/compose.yml --env-file docker/stack.env up -d
+# Chuẩn bị: xem docs/operations/release-runbook.md (tạo khóa ticket, mật khẩu DB, JWT/service token, migrate).
+name: pawbound
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }   # xoay log: tối đa 50 MB/dịch vụ
+
+services:
+  db:
+    image: postgres:18.4-bookworm
+    environment:
+      POSTGRES_USER: pawbound
+      POSTGRES_DB: pawbound
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes: [dbdata:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pawbound -d pawbound"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources: { limits: { cpus: "1.0", memory: 1g } }
+    logging: *logging
+    restart: unless-stopped
+    # KHÔNG publish cổng DB ra ngoài
+
+  migrate:   # chạy một lần trước backend; idempotent
+    image: pawbound-backend:${PAWBOUND_VERSION:-0.1.0}
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment: &backend_env
+      DATABASE_URL: ${DATABASE_URL}
+      APP_ENV: ${APP_ENV:-development}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      MOCK_PAYMENT_WEBHOOK_SECRET: ${MOCK_PAYMENT_WEBHOOK_SECRET}
+      TICKET_SK_FILE: /run/secrets/ticket_sk
+      PORT: "3000"
+    secrets: [ticket_sk]
+    depends_on: { db: { condition: service_healthy } }
+    logging: *logging
+    restart: "no"
+
+  backend:
+    image: pawbound-backend:${PAWBOUND_VERSION:-0.1.0}
+    environment: *backend_env
+    secrets: [ticket_sk]
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    ports: ["127.0.0.1:3000:3000"]   # đặt sau reverse proxy TLS (Caddy/Nginx); không mở trực tiếp
+    deploy:
+      resources: { limits: { cpus: "1.0", memory: 512m } }
+    logging: *logging
+    restart: unless-stopped
+    stop_grace_period: 20s
+
+  gameserver:
+    image: pawbound-server:${PAWBOUND_VERSION:-0.1.0}
+    init: true
+    environment:
+      PAWBOUND_SERVER_ID: ${PAWBOUND_SERVER_ID:-srv-1}
+      PAWBOUND_PUBLIC_ADDRESS: ${PAWBOUND_PUBLIC_ADDRESS:-127.0.0.1}
+      PAWBOUND_BACKEND_URL: http://backend:3000/api/v1   # mạng nội bộ docker
+      PAWBOUND_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      PAWBOUND_TICKET_PUBKEY: /run/secrets/ticket_pk
+    secrets: [ticket_pk]
+    depends_on: { backend: { condition: service_healthy } }
+    ports:
+      - "27015:27015/udp"            # game (UDP) — mở ra Internet
+      - "127.0.0.1:8081:8081"        # health/metrics — chỉ nội bộ
+    deploy:
+      resources: { limits: { cpus: "2.0", memory: 512m } }
+    logging: *logging
+    restart: unless-stopped
+    stop_grace_period: 30s           # đủ thời gian lưu nhân vật khi tắt (SIGTERM)
+
+secrets:
+  db_password: { file: ./secrets/db_password.txt }
+  ticket_sk: { file: ./secrets/ticket_sk.b64 }
+  ticket_pk: { file: ./secrets/ticket_pk.b64 }
+
+volumes:
+  dbdata:

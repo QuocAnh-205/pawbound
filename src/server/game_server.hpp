@@ -16,6 +16,7 @@
 #include "net/protocol.hpp"
 #include "net/ticket.hpp"
 #include "server/backend_link.hpp"
+#include "server/health.hpp"
 #include "sim/advanced.hpp"
 #include "sim/collision.hpp"
 #include "sim/gameplay.hpp"
@@ -58,6 +59,9 @@ struct ServerConfig {
   int territory_min_members = 2;
   double territory_hold_s = 60;
   double territory_eval_interval_s = 5;
+  // Vận hành: HTTP /health + /metrics (0 = tắt). Mặc định chỉ nghe localhost.
+  uint16_t health_port = 0;
+  std::string health_bind = "127.0.0.1";
 };
 
 struct Metrics {
@@ -192,6 +196,9 @@ class GameServer {
   std::mutex cmd_mu_;
   std::deque<std::string> cmds_;
   BackendLink backend_;
+  HealthServer health_;
+  double next_health_ = 0;
+  void publish_health();
   sim::AdvancedConfig adv_;
   std::unique_ptr<sim::CaptureSystem> capture_;
   double next_territory_eval_ = 0;

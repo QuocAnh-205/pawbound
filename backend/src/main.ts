@@ -19,7 +19,8 @@ async function bootstrap() {
   const app = await NestFactory.create(buildModule(env), { logger: ['log', 'warn', 'error'], rawBody: true });
   configureApp(app);
   app.enableShutdownHooks();
-  await app.listen(env.port, '127.0.0.1');
+  // Mặc định chỉ localhost; container đặt HOST=0.0.0.0 (cổng vẫn chỉ publish qua mạng nội bộ/reverse proxy)
+  await app.listen(env.port, process.env.HOST ?? '127.0.0.1');
   new Logger('main').log(`PAWBOUND backend http://127.0.0.1:${env.port}/api/v1 — tài liệu: /api/docs`);
 }
 

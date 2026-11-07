@@ -9,6 +9,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 option(PB_BUILD_CLIENT "Build game client (needs SDL3 video + Vulkan)" ON)
 option(PB_BUILD_TESTS "Build unit tests" ON)
+option(PB_BUILD_SERVER "Build dedicated server, bot, CLI tools (cần libsodium)" ON)
+if(ANDROID)  # Android: chỉ client (libmain.so cho SDLActivity); không server/tool/test
+  set(PB_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+  set(PB_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+endif()
 
 include(cmake/CompilerSettings.cmake)
 include(cmake/Dependencies.cmake)

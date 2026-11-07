@@ -24,6 +24,13 @@ struct GamepadSnapshot {
   bool a = false, b = false, x = false, y = false, lb = false, rb = false;
 };
 
+// Chạm màn hình (điện thoại). Tọa độ chuẩn hóa 0..1 theo cửa sổ.
+struct TouchEvent {
+  enum class Type : uint8_t { Down, Move, Up } type = Type::Down;
+  uint64_t finger = 0;
+  float x = 0, y = 0;
+};
+
 struct FrameEvents {
   bool quit_requested = false;
   bool resized = false;
@@ -36,6 +43,9 @@ struct FrameEvents {
   bool mouse_right_pressed = false;
   std::string text;     // UTF-8 gõ được trong frame (chỉ khi đang bật text input)
   int backspaces = 0;   // số lần Backspace (kể cả giữ phím lặp)
+  std::vector<TouchEvent> touches;
+  bool app_background = false;  // Android: app bị đưa xuống nền (dừng render)
+  bool app_foreground = false;
 };
 
 // RAII: khởi tạo SDL video khi tạo, SDL_Quit khi hủy.

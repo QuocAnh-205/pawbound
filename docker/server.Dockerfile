@@ -1,30 +1,36 @@
-# Dedicated server PAWBOUND trên Linux (headless, không SDL video/Vulkan).
-# Build:  docker build -f docker/server.Dockerfile -t pawbound-server:dev .
-# Chạy:   docker run --rm -p 27015:27015/udp -v %CD%/config/dev_keys:/keys:ro pawbound-server:dev
-# LƯU Ý (máy dev hiện tại): Docker Desktop lưu image trên ổ C (gần đầy) — chuyển "Disk image location"
-# sang ổ D trước khi build. Dockerfile này CHƯA được build thử (xem phase-10-report).
-
-FROM debian:bookworm-slim AS build
+# Dedicated server PAWBOUND (Linux, headless). Multi-stage: build + test trong image, runtime tối giản, user không phải root.
+# Build:  docker build -f docker/server.Dockerfile -t pawbound-server:0.1.0 .
+# Chạy:   docker run --init --rm -p 27015:27015/udp -p 127.0.0.1:8081:8081 \
+#           -v /duong/dan/keys:/keys:ro -e PAWBOUND_SERVICE_TOKEN=... pawbound-server:0.1.0
+FROM ubuntu:24.04 AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      g++ cmake ninja-build libsodium-dev ca-certificates git && rm -rf /var/lib/apt/lists/*
+      g++ cmake ninja-build libsodium-dev python3 ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY CMakeLists.txt CMakePresets.json ./
 COPY cmake cmake
 COPY src src
 COPY tests tests
 COPY shaders shaders
+COPY scripts scripts
+COPY data data
+COPY assets assets
+COPY config config
 COPY .deps-cache/archives .deps-cache/archives
-# GCC 12 của bookworm hỗ trợ C++20 nhưng <format> cần GCC 13+: dùng trixie/testing nếu build lỗi.
-RUN cmake --preset linux-server-release && cmake --build --preset linux-server-release \
- && ctest --preset linux-server-release -E "client|renderer|gpu"
+# Build + chạy toàn bộ test Linux (unit, world tất định, chat, bắt chó qua mạng) — test lỗi thì image không được tạo
+RUN cmake --preset linux-server-release && cmake --build --preset linux-server-release -j"$(nproc)" \
+ && ctest --preset linux-server-release --output-on-failure
 
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends libsodium23 && rm -rf /var/lib/apt/lists/* \
- && useradd --system --uid 10001 pawbound
+ && useradd --system --uid 10001 --home-dir /app pawbound
 WORKDIR /app
 COPY --from=build /src/build/linux-server-release/bin/pawbound_server /src/build/linux-server-release/bin/pawbound /app/
 COPY data /app/data
+COPY docker/server-entrypoint.sh /app/entrypoint.sh
 USER pawbound
-# World được sinh lại từ seed lúc khởi động (deterministic) — không cần đóng gói dữ liệu world.
-EXPOSE 27015/udp
-ENTRYPOINT ["/bin/sh", "-c", "/app/pawbound world generate --seed 20261106 --config /app/data/world/demo.json --output /tmp/world && exec /app/pawbound_server --world /tmp/world --data /app --ticket-pubkey /keys/ticket_pk.b64 --no-console"]
+EXPOSE 27015/udp 8081/tcp
+# Health: HTTP nội bộ của server (vòng lặp game treo > 10 s -> 503). Không cần curl: dùng /dev/tcp của bash.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
+  CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/8081 && printf "GET /health HTTP/1.0\r\n\r\n" >&3 && grep -q "200 OK" <&3'
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/app/entrypoint.sh"]

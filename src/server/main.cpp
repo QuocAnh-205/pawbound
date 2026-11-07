@@ -7,6 +7,7 @@
 #include <string_view>
 #include <thread>
 
+#include "core/crash.hpp"
 #include "core/log.hpp"
 #include "core/version.hpp"
 #include "server/game_server.hpp"
@@ -30,6 +31,7 @@ bool fnum(std::string_view s, double& out) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  pb::install_crash_handler("server");
   pb::server::ServerConfig cfg;
   bool console = true;
   for (int i = 1; i < argc; ++i) {
@@ -44,6 +46,12 @@ int main(int argc, char** argv) {
     else if (s == "--data") cfg.data_root = std::string(next());
     else if (s == "--ticket-pubkey") cfg.ticket_pubkey = std::string(next());
     else if (s == "--advanced") cfg.advanced_config = std::string(next());
+    else if (s == "--health-port") ok = num(next(), cfg.health_port);
+    else if (s == "--health-bind") cfg.health_bind = next();
+    else if (s == "--crash-test") {  // kiểm chứng báo cáo crash (vận hành/QA)
+      volatile int* bad = nullptr;
+      *bad = 1;
+    }
     else if (s == "--metrics") cfg.metrics_file = std::string(next());
     else if (s == "--metrics-interval") ok = fnum(next(), cfg.metrics_interval_s);
     else if (s == "--sim-loss") ok = fnum(next(), cfg.netsim.loss);

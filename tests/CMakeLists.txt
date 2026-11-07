@@ -1,6 +1,6 @@
 file(GLOB_RECURSE PB_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 add_executable(pb_tests ${PB_TEST_SOURCES})
-target_link_libraries(pb_tests PRIVATE pb_core pb_geom pb_asset pb_world pb_sim pb_net pb_server doctest::doctest)
+target_link_libraries(pb_tests PRIVATE pb_core pb_geom pb_asset pb_world pb_sim pb_net pb_ticket pb_server doctest::doctest)
 target_compile_definitions(pb_tests PRIVATE PB_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 pb_set_warnings(pb_tests)
 add_test(NAME unit COMMAND pb_tests)

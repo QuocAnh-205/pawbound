@@ -1,0 +1,14 @@
+build/
+out/
+logs/
+screenshots/
+**/node_modules/
+backend/dist/
+**/.env
+*.pem
+*.key
+config/dev_keys/
+.git/
+.vs/
+.vscode/
+.idea/

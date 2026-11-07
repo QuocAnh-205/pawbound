@@ -1,4 +1,7 @@
 // PAWBOUND client — điểm vào.
+#if defined(__ANDROID__)
+#include <SDL3/SDL_main.h>  // đổi main -> SDL_main cho SDLActivity
+#endif
 #include <algorithm>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -12,7 +15,11 @@
 #include "client/test_scene.hpp"
 #include "client/dog_actor.hpp"
 #include "client/game_session.hpp"
+#include <glm/geometric.hpp>
+
+#include "client/android_bootstrap.hpp"
 #include "client/net_game.hpp"
+#include "client/touch_controls.hpp"
 #include "core/text.hpp"
 #include <fstream>
 #include "client/qa_scenario.hpp"
@@ -26,6 +33,7 @@
 #include "world/world_io.hpp"
 #include "core/application.hpp"
 #include "core/client_config.hpp"
+#include "core/crash.hpp"
 #include "core/log.hpp"
 #include "core/version.hpp"
 #include "geom/camera.hpp"
@@ -217,8 +225,13 @@ class ClientApp final : public pb::Application {
     auto ev = platform_->pump_events();  // (không const: phần chat có thể "nuốt" phím)
     if (ev.quit_requested) request_quit(0);
     if (ev.resized && renderer_) renderer_->notify_resized();
-    minimized_ = ev.minimized || ev.width == 0 || ev.height == 0;
+    if (ev.app_background) backgrounded_ = true;
+    if (ev.app_foreground) backgrounded_ = false;
+    minimized_ = backgrounded_ || ev.minimized || ev.width == 0 || ev.height == 0;
     width_ = ev.width;
+    touch_.update(ev.touches, ev.height > 0 ? static_cast<float>(ev.width) / static_cast<float>(ev.height) : 1.0f);
+    for (const auto& k : touch_.take_pressed()) ev.keys_pressed.push_back(static_cast<int>(SDL_GetKeyFromName(k.c_str())));
+    if (const float z = touch_.take_zoom(); z != 0.0f) camera_.add_zoom(-z);
     height_ = ev.height;
     aspect_ = ev.height > 0 ? static_cast<float>(ev.width) / static_cast<float>(ev.height) : 1.0f;
     // Chat gần (online): Enter mở ô nhập / gửi, Esc hủy. Khi đang gõ, phím không điều khiển chó.
@@ -275,12 +288,13 @@ class ClientApp final : public pb::Application {
     auto key_down = [&](const std::string& name) {
       auto it = scancodes_.find(name);
       if (it == scancodes_.end()) it = scancodes_.emplace(name, static_cast<int>(SDL_GetScancodeFromName(name.c_str()))).first;
-      return it->second != SDL_SCANCODE_UNKNOWN && platform_->key_down(it->second);
+      return touch_.held(name) || (it->second != SDL_SCANCODE_UNKNOWN && platform_->key_down(it->second));
     };
     auto was_pressed = [&](const std::string& name) { return pressed_.contains(name); };
     const auto gp = platform_->gamepad();
     pb::sim::GamepadState pad{gp.connected, gp.lx, gp.ly, gp.a, gp.b, gp.x, gp.y, gp.lb, gp.rb, gp.rt, gp.lt};
     auto in = pb::sim::map_input(bindings_, key_down, was_pressed, pad);
+    if (glm::length(touch_.move()) > 0.0f) in.move = touch_.move();  // joystick ảo (analog)
     session_pressed_.assign(pressed_.begin(), pressed_.end());
     pressed_.clear();  // cạnh lên chỉ dùng một lần
     if (args_.resize_test) {  // smoke test: tự chạy, thỉnh thoảng nước rút và nhảy
@@ -405,6 +419,7 @@ class ClientApp final : public pb::Application {
       overlay_.clear();
       if (session_) session_->draw_hud(overlay_, width_, height_, time_of_day_);
       if (net_) net_->draw_hud(overlay_, width_, height_);
+      touch_.draw(overlay_, width_, height_);
       renderer_->draw_frame(sp, draw_items_, &overlay_);
     } else {
       sp.point_lights = scene_.lights;
@@ -518,6 +533,8 @@ class ClientApp final : public pb::Application {
   std::vector<pb::render::DrawItem> draw_items_;
   float aspect_ = 16.0f / 9.0f;
   bool minimized_ = false;
+  bool backgrounded_ = false;
+  pb::client::TouchControls touch_;
   bool shot_taken_ = false;
   float time_of_day_ = 15.0f;
   uint32_t val_errors_ = 0;
@@ -528,7 +545,17 @@ class ClientApp final : public pb::Application {
 }  // namespace
 
 int main(int argc, char** argv) {
-  Args args = parse_args(argc, argv);
+  pb::install_crash_handler("client");
+  std::string boot_err;
+  std::vector<std::string> margs = pb::client::mobile_bootstrap(pb::utf8_args(argc, argv), boot_err);
+  if (!boot_err.empty()) {
+    pb::log::fatal("client", "khởi động: {}", boot_err);
+    return 4;
+  }
+  std::vector<char*> mptr;
+  for (auto& a : margs) mptr.push_back(a.data());
+  mptr.push_back(nullptr);
+  Args args = parse_args(static_cast<int>(margs.size()), mptr.data());
   if (!args.ok) {
     pb::log::error("client", "cách dùng: pawbound_client [--config f] [--frames N] [--hidden] [--validation|--no-validation]"
                              " [--no-render] [--gpu discrete|integrated|tên] [--screenshot file.png] [--time 0-23]");
