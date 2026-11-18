@@ -8,6 +8,7 @@
 #include <format>
 #include <functional>
 #include <stdexcept>
+#include <unordered_map>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
@@ -49,6 +50,18 @@ const uint32_t kMeshSkinnedVert[] =
     ;
 const uint32_t kShadowSkinnedVert[] =
 #include "shadow_skinned.vert.inc"
+    ;
+const uint32_t kShadowMaskVert[] =
+#include "shadow_mask.vert.inc"
+    ;
+const uint32_t kShadowMaskFrag[] =
+#include "shadow_mask.frag.inc"
+    ;
+const uint32_t kSkyVert[] =
+#include "sky.vert.inc"
+    ;
+const uint32_t kSkyFrag[] =
+#include "sky.frag.inc"
     ;
 
 struct SkinVertex {
@@ -94,16 +107,19 @@ struct FrameUniforms {
   glm::vec4 camera_back_dir, sun_dir, sun_color, sky_color, ground_color, fog_color, focus, params;
   glm::vec4 point_pos[kMaxPointLights];
   glm::vec4 point_color[kMaxPointLights];
+  glm::mat4 inv_view_proj;
+  glm::vec4 sky_zenith, sky_horizon;
 };
-static_assert(sizeof(FrameUniforms) == 128 + 8 * 16 + 2 * kMaxPointLights * 16, "khớp std140 trong common.glsl");
+static_assert(sizeof(FrameUniforms) == 128 + 8 * 16 + 2 * kMaxPointLights * 16 + 64 + 32, "khớp std140 trong common.glsl");
 
 struct DrawPush {
   glm::mat4 model;
   glm::vec4 base_color;
   glm::vec4 mat_params;
   glm::uvec4 tex;
+  glm::vec4 extra;  // x: ngưỡng alpha, y: hệ số gió
 };
-static_assert(sizeof(DrawPush) == 112, "push constant ≤ 128 byte");
+static_assert(sizeof(DrawPush) == 128, "push constant ≤ 128 byte (mức tối thiểu đảm bảo của Vulkan)");
 
 struct Buffer {
   VkBuffer buffer = VK_NULL_HANDLE;
@@ -185,6 +201,8 @@ struct Renderer::Impl {
   VkPipeline mesh_pipeline = VK_NULL_HANDLE, shadow_pipeline = VK_NULL_HANDLE, tonemap_pipeline = VK_NULL_HANDLE;
   VkPipeline skinned_pipeline = VK_NULL_HANDLE, shadow_skinned_pipeline = VK_NULL_HANDLE;
   VkPipeline overlay_pipeline = VK_NULL_HANDLE;
+  VkPipeline sky_pipeline = VK_NULL_HANDLE, shadow_mask_pipeline = VK_NULL_HANDLE;
+  std::unordered_map<uint64_t, uint32_t> texture_dedup;  // băm nội dung ảnh -> slot
   VkPipelineLayout overlay_layout = VK_NULL_HANDLE;
 
   struct Frame {
@@ -738,6 +756,9 @@ struct Renderer::Impl {
     VkFormat depth_format = VK_FORMAT_UNDEFINED;
     VkCullModeFlags cull = VK_CULL_MODE_BACK_BIT;
     bool depth_bias = false;
+    bool dynamic_cull = false;  // cull đặt theo từng draw (vật liệu hai mặt)
+    bool pos_uv_color = false;  // chỉ vị trí + UV + màu (bóng đổ cắt alpha)
+    bool depth_write = true;
   };
 
   VkPipeline create_pipeline(const PipelineDesc& d) {
@@ -760,6 +781,7 @@ struct Renderer::Impl {
     };
     VkVertexInputBindingDescription binds[2] = {bind, {1, sizeof(SkinVertex), VK_VERTEX_INPUT_RATE_VERTEX}};
     std::vector<VkVertexInputAttributeDescription> av(attrs, attrs + (d.position_only ? 1 : 5));
+    if (d.pos_uv_color) av = {attrs[0], attrs[2], attrs[4]};
     if (d.skinned) {
       av.push_back({5, 1, VK_FORMAT_R16G16B16A16_UINT, static_cast<uint32_t>(offsetof(SkinVertex, joints))});
       av.push_back({6, 1, VK_FORMAT_R32G32B32A32_SFLOAT, static_cast<uint32_t>(offsetof(SkinVertex, weights))});
@@ -795,7 +817,7 @@ struct Renderer::Impl {
     ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     VkPipelineDepthStencilStateCreateInfo ds{VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
     ds.depthTestEnable = d.depth_format != VK_FORMAT_UNDEFINED;
-    ds.depthWriteEnable = ds.depthTestEnable;
+    ds.depthWriteEnable = ds.depthTestEnable && d.depth_write;
     ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     VkPipelineColorBlendAttachmentState cba{};
     cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
@@ -814,6 +836,7 @@ struct Renderer::Impl {
     cb.pAttachments = &cba;
     std::vector<VkDynamicState> dyn = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     if (d.depth_bias) dyn.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
+    if (d.dynamic_cull) dyn.push_back(VK_DYNAMIC_STATE_CULL_MODE);  // lõi Vulkan 1.3
     VkPipelineDynamicStateCreateInfo dy{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
     dy.dynamicStateCount = static_cast<uint32_t>(dyn.size());
     dy.pDynamicStates = dyn.data();
@@ -849,6 +872,7 @@ struct Renderer::Impl {
     m.layout = mesh_layout;
     m.color_format = kHdrFormat;
     m.depth_format = kDepthFormat;
+    m.dynamic_cull = true;
     mesh_pipeline = create_pipeline(m);
     VkShaderModule msv = shader(kMeshSkinnedVert, sizeof(kMeshSkinnedVert));
     VkShaderModule ssv = shader(kShadowSkinnedVert, sizeof(kShadowSkinnedVert));
@@ -868,6 +892,25 @@ struct Renderer::Impl {
     ss.vs = ssv;
     ss.skinned = true;
     shadow_skinned_pipeline = create_pipeline(ss);
+    VkShaderModule smv = shader(kShadowMaskVert, sizeof(kShadowMaskVert)), smf = shader(kShadowMaskFrag, sizeof(kShadowMaskFrag));
+    PipelineDesc sm = s;
+    sm.vs = smv;
+    sm.fs = smf;
+    sm.position_only = false;
+    sm.pos_uv_color = true;
+    shadow_mask_pipeline = create_pipeline(sm);
+    VkShaderModule kv = shader(kSkyVert, sizeof(kSkyVert)), kf = shader(kSkyFrag, sizeof(kSkyFrag));
+    PipelineDesc sky;
+    sky.vs = kv;
+    sky.fs = kf;
+    sky.layout = mesh_layout;
+    sky.vertex_input = false;
+    sky.color_format = kHdrFormat;
+    sky.depth_format = kDepthFormat;
+    sky.depth_write = false;
+    sky.cull = VK_CULL_MODE_NONE;
+    sky_pipeline = create_pipeline(sky);
+    for (auto mod : {smv, smf, kv, kf}) vkDestroyShaderModule(device, mod, nullptr);
     PipelineDesc t;
     t.vs = tv;
     t.fs = tf;
@@ -979,7 +1022,10 @@ struct Renderer::Impl {
     p.mat_params = glm::vec4(it.material.metallic, it.material.roughness, it.material.emissive,
                              static_cast<float>(std::max(joint_offset, 0)));
     const auto clamp_tex = [](uint32_t t) { return t < kMaxTextures ? t : kTexWhite; };
-    uint32_t flags = (it.material.cutaway ? 1u : 0u) | (it.material.unlit ? 2u : 0u);
+    const auto& mt = it.material;
+    uint32_t flags = (mt.cutaway ? 1u : 0u) | (mt.unlit ? 2u : 0u) | (mt.alpha_cutoff > 0.0f ? 4u : 0u) |
+                     (mt.wind > 0.0f ? 8u : 0u) | (mt.water ? 16u : 0u) | (mt.double_sided ? 32u : 0u);
+    p.extra = glm::vec4(mt.alpha_cutoff, mt.wind, 0.0f, 0.0f);
     p.tex = glm::uvec4(clamp_tex(it.material.base_tex), clamp_tex(it.material.normal_tex),
                        clamp_tex(it.material.orm_tex), flags);
     vkCmdPushConstants(cmd, mesh_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(p), &p);
@@ -1019,6 +1065,9 @@ struct Renderer::Impl {
     u.ground_color = glm::vec4(sp.ground_color, 0.0f);
     u.fog_color = glm::vec4(sp.fog_color, sp.fog_density);
     u.focus = glm::vec4(sp.focus, sp.cutaway_radius);
+    u.inv_view_proj = glm::inverse(view_proj);
+    u.sky_zenith = glm::vec4(sp.sky_zenith, sp.cloud_coverage);
+    u.sky_horizon = glm::vec4(sp.sky_horizon, sp.wind_strength);
     std::vector<PointLight> lights = sp.point_lights;
     std::sort(lights.begin(), lights.end(), [&](const PointLight& a, const PointLight& b) {
       const glm::vec3 da = a.position - sp.focus, db = b.position - sp.focus;
@@ -1116,9 +1165,10 @@ struct Renderer::Impl {
       int cur = -1;
       for (const DrawItem* it : casters) {
         const GpuMesh& m = *meshes.get(it->mesh);
-        const int want = use_skin(it, m) ? 1 : 0;
+        const int want = use_skin(it, m) ? 1 : it->material.alpha_cutoff > 0.0f ? 2 : 0;
         if (want != cur) {
-          vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, want ? shadow_skinned_pipeline : shadow_pipeline);
+          vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            want == 1 ? shadow_skinned_pipeline : want == 2 ? shadow_mask_pipeline : shadow_pipeline);
           cur = want;
         }
         bind_mesh(m);
@@ -1167,14 +1217,24 @@ struct Renderer::Impl {
       VkRect2D sc{{0, 0}, extent};
       vkCmdSetViewport(cmd, 0, 1, &vp);
       vkCmdSetScissor(cmd, 0, 1, &sc);
+      // Bầu trời: tam giác phủ màn ở độ sâu xa nhất (không ghi depth)
+      vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, sky_pipeline);
+      vkCmdDraw(cmd, 3, 1, 0, 0);
       const GpuMesh* bound = nullptr;
       int cur = -1;
+      VkCullModeFlags cur_cull = ~0u;
       for (const DrawItem* it : visible) {
         const GpuMesh* m = meshes.get(it->mesh);
         const int want = use_skin(it, *m) ? 1 : 0;
         if (want != cur) {
           vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, want ? skinned_pipeline : mesh_pipeline);
           cur = want;
+          cur_cull = ~0u;  // pipeline mới: phải đặt lại trạng thái động
+        }
+        const VkCullModeFlags cull = it->material.double_sided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+        if (cull != cur_cull) {
+          vkCmdSetCullMode(cmd, cull);
+          cur_cull = cull;
         }
         if (m != bound) {
           bind_mesh(*m);
@@ -1349,7 +1409,7 @@ struct Renderer::Impl {
     for (auto& t : textures) destroy(t);
     if (device) {
       for (auto p : {mesh_pipeline, shadow_pipeline, tonemap_pipeline, skinned_pipeline, shadow_skinned_pipeline,
-                     overlay_pipeline})
+                     overlay_pipeline, sky_pipeline, shadow_mask_pipeline})
         if (p) vkDestroyPipeline(device, p, nullptr);
       if (mesh_layout) vkDestroyPipelineLayout(device, mesh_layout, nullptr);
       if (tonemap_layout) vkDestroyPipelineLayout(device, tonemap_layout, nullptr);
@@ -1473,6 +1533,10 @@ MeshHandle Renderer::upload_skinned_mesh(const geom::MeshData& mesh, std::span<c
 
 uint32_t Renderer::upload_texture(const geom::ImageRGBA8& image, bool srgb, std::string_view name) {
   auto& d = *impl_;
+  // Dùng chung: ảnh trùng nội dung (nhiều model nhúng cùng một texture) chỉ chiếm MỘT slot
+  uint64_t h = 1469598103934665603ull ^ (static_cast<uint64_t>(image.width) << 32) ^ static_cast<uint64_t>(image.height) ^ (srgb ? 0x9E37u : 0u);
+  for (uint8_t b : image.pixels) h = (h ^ b) * 1099511628211ull;
+  if (auto it = d.texture_dedup.find(h); it != d.texture_dedup.end()) return it->second;
   if (d.textures.size() >= kMaxTextures) {
     log::error("render", "hết slot texture ({}), '{}' dùng texture trắng", kMaxTextures, name);
     return kTexWhite;
@@ -1480,6 +1544,7 @@ uint32_t Renderer::upload_texture(const geom::ImageRGBA8& image, bool srgb, std:
   try {
     const uint32_t idx = d.upload_texture(image, srgb);
     d.refresh_texture_descriptors();
+    d.texture_dedup[h] = idx;
     return idx;
   } catch (const std::exception& e) {
     log::error("render", "upload texture '{}' lỗi: {}", name, e.what());

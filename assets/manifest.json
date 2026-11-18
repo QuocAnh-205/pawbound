@@ -42,6 +42,812 @@
         "walk",
         "run"
       ]
+    },
+    {
+      "id": "cc0_village_wall_plaster_straight",
+      "path": "cc0/village/Wall_Plaster_Straight.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "dff7245a45658626a6be42d386fdceb6af7420dcaed6bfb7f98696ebd2c848fe",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_wall_plaster_window_wide_round",
+      "path": "cc0/village/Wall_Plaster_Window_Wide_Round.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "b8a6c3ff4d0a2c047284c2eccc107d56d51a5e9d529950084de92bf536574f90",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_wall_plaster_window_thin_round",
+      "path": "cc0/village/Wall_Plaster_Window_Thin_Round.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "d6aa537e551ec4e0208fec26249f4c92dc436846fae97696a3c0c887f4786d89",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_wall_plaster_door_round",
+      "path": "cc0/village/Wall_Plaster_Door_Round.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "9f80adef1aa2b5e201a1236a02b53397dd75b2ab066efb2099e152373e8c7103",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_wall_plaster_woodgrid",
+      "path": "cc0/village/Wall_Plaster_WoodGrid.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "fa6bf017c9f7292b496f260335a5094096eafdc2fa1461a5c3b5996497db7636",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_wall_unevenbrick_straight",
+      "path": "cc0/village/Wall_UnevenBrick_Straight.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "f6ebe84402d061301aa933d1290f8da76c1fec452cc4a7fdf770995dbcfe50a4",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_wall_unevenbrick_window_wide_round",
+      "path": "cc0/village/Wall_UnevenBrick_Window_Wide_Round.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "1a8630ef0dc586955c906c59b96ad633ca677ab862771c79ea2a310fa99bd540",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_wall_unevenbrick_door_round",
+      "path": "cc0/village/Wall_UnevenBrick_Door_Round.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "5573c47a23f5f55fcd126ad630ea9841540e4f9206dc27f858da1bb13f9a8500",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_corner_exterior_wood",
+      "path": "cc0/village/Corner_Exterior_Wood.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "2c3f76df3a3503b9ac2dd98dd86efd8bd6b6b4d04365d3017cd65842d259120f",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_corner_exterior_brick",
+      "path": "cc0/village/Corner_Exterior_Brick.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "532f88e4b394442f2d07cd6b9058383f00f7539086e4ed07a598394843595da5",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_4x4",
+      "path": "cc0/village/Roof_RoundTiles_4x4.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "4a7d56380d43413d19069a15da50c1a4318f01fae65c63890ce2dd7cacb52c8a",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_4x6",
+      "path": "cc0/village/Roof_RoundTiles_4x6.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "ca024c29359c9e1d9aa8f637af05fb34c7bbe1b0dcd539498bdfefb868bdddb8",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_4x8",
+      "path": "cc0/village/Roof_RoundTiles_4x8.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "23c8b91342472b64cbbc42a71d78eb58f92b1767c7b4bfc02385b17b4b65ffdd",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_6x6",
+      "path": "cc0/village/Roof_RoundTiles_6x6.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "f899664c30dd003fc4e6547e193a40ddb019a87a118505402954252106178159",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_6x8",
+      "path": "cc0/village/Roof_RoundTiles_6x8.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "ff7f6ce594ddb771dc956ab22f6ee6b2d004b6b19df609f52be1e037907a89db",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_6x10",
+      "path": "cc0/village/Roof_RoundTiles_6x10.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "b565a26cf97cc689f3e724d60eea1becb0132ae2bf7ca725e862fb21ca8c9259",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_6x12",
+      "path": "cc0/village/Roof_RoundTiles_6x12.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "1e2e5115501dae7a9aec20259a22bedd1e9ee437d1de7d080eb5c5d24d934d95",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_8x8",
+      "path": "cc0/village/Roof_RoundTiles_8x8.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "d785364e913741c829c22092899603de163ac158fc61924a627107dd2da693c8",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_8x10",
+      "path": "cc0/village/Roof_RoundTiles_8x10.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "68b8d41c086ef093c704e951cb85c1dd0186ce6b1ecaabab76bcc0803d84171d",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_8x12",
+      "path": "cc0/village/Roof_RoundTiles_8x12.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "6bc4de707c39037a0d26678b3edc103c53bf9dfa4b9dc64496adde87a5850a5c",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_roof_roundtiles_8x14",
+      "path": "cc0/village/Roof_RoundTiles_8x14.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "6682c61447d3279a05bde4a8901daf7625180f7cab1e2363bee4b717e593542d",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_prop_chimney",
+      "path": "cc0/village/Prop_Chimney.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "1eaa3bc00bb5d277ed7d7473b347c188dac979c0ed6746c35d5f45a7de2947cf",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_prop_woodenfence_single",
+      "path": "cc0/village/Prop_WoodenFence_Single.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "868da8535b570364a944a88c74d26446a9ca98971b91ed3ce0513d5d9c5c633d",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_prop_wagon",
+      "path": "cc0/village/Prop_Wagon.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "d352e84fac6ae5b2e1c9beae3c44de3c6df2ef4e11fd41d3a236619fcfa95678",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_village_prop_crate",
+      "path": "cc0/village/Prop_Crate.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/medievalvillagemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "1ee5bed9483e63f4f0db40e34be5bdcb15a0e7ac3f0cc4e893e231cefe008103",
+      "height_m": 0,
+      "tags": [
+        "village"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_commontree_1",
+      "path": "cc0/nature/CommonTree_1.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "fd482bbe331e7eb3aa8a152b9d11ff3f13ba5fcade0495d5f9289003bbbc2041",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_commontree_2",
+      "path": "cc0/nature/CommonTree_2.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "ff6eb619cbb878198cdbab6e9bf7da3784a73a1e892a4b9e50be19e2747c3c59",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_commontree_3",
+      "path": "cc0/nature/CommonTree_3.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "136c81de731dea1e8eeb266cd8ea4b828a529041afddcb5e1ef206ef5e5207b0",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_commontree_4",
+      "path": "cc0/nature/CommonTree_4.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "18a83845272a451b42b7114e69cc8a67541c5314140e3bdd78caf01fbcf16f66",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_commontree_5",
+      "path": "cc0/nature/CommonTree_5.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "28979842c28e53eb5e3eeb7128ec14262582ca303b11935b38da1fffb4d980ea",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_pine_1",
+      "path": "cc0/nature/Pine_1.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "fab8886e3784a11b7787dcbb25879735f1e5136df0827be628ecfc035655818c",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_pine_2",
+      "path": "cc0/nature/Pine_2.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "3e438ee5ac274f1e72c1a5a82bdef1abc71fc336309c711d2e12fc94451b0313",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_pine_3",
+      "path": "cc0/nature/Pine_3.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "dfe14d94cbdbe4d979b7abc75133f78bd80015d303fdcae49b04069da3d2eb3a",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_bush_common",
+      "path": "cc0/nature/Bush_Common.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "bdfc56721dd56c305861fde6d6bba9f567905b5284bd83171006a06a75059966",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_bush_common_flowers",
+      "path": "cc0/nature/Bush_Common_Flowers.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "d984b7aef80056a80f4e0543a28166b1a836c40ecf8d6c7b5e17d65827efae9e",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_grass_common_short",
+      "path": "cc0/nature/Grass_Common_Short.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "165409abd1470c83e61e8c909312d9222e6d1d48a9cc74127fdfe071c955ac68",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_grass_common_tall",
+      "path": "cc0/nature/Grass_Common_Tall.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "f23d905a682deb3c0ca61543a1908b3b69739626729cf214483695ea65612303",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_grass_wispy_tall",
+      "path": "cc0/nature/Grass_Wispy_Tall.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "b3773c62fc641df51cd0bce680bba392e27380f48f9232ab156f6bbae26da8d9",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_flower_3_group",
+      "path": "cc0/nature/Flower_3_Group.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "0903ceaeb06fccda309224ec7595335f6413c11e1482b479366603f5824866f9",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_flower_4_group",
+      "path": "cc0/nature/Flower_4_Group.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "7332e3d224d017e82f4f26fd95076cd1afa7716af12d32d782b3957deecd8c4f",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_clover_1",
+      "path": "cc0/nature/Clover_1.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "44acf2d39ffee1ab505b9d6afbcc3101d9c2b4d753f4b2e2815af382b842f893",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_fern_1",
+      "path": "cc0/nature/Fern_1.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "d31af8dc57e369de164f591d3995420d0d0e3f40ed3cfcaf572922a677f23142",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_plant_1",
+      "path": "cc0/nature/Plant_1.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "7d39a12d649eb1fece7a4bf1c016ae3ecada46e016d644578b3672a876372d3a",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_rock_medium_1",
+      "path": "cc0/nature/Rock_Medium_1.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "a505935acd402ed89cfe951a3306714a0822e228f44a9236dfd35eb0938fb15f",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_rock_medium_2",
+      "path": "cc0/nature/Rock_Medium_2.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "a4de5a47f07a1d0c29bfbf3c200b34b26ae8c9b6cdc98343354761d256b18395",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_rock_medium_3",
+      "path": "cc0/nature/Rock_Medium_3.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "27b65f73a396ab38eb68e77516772f842b0682fa5c316af68fbbcf6c377ba0f8",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_pebble_round_1",
+      "path": "cc0/nature/Pebble_Round_1.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "366a8660b4f2d24b033dade92f9d3bd3fb6498b3f9077d23d3a36524b2a0f6d3",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_nature_mushroom_common",
+      "path": "cc0/nature/Mushroom_Common.glb",
+      "type": "prop",
+      "quality": "production",
+      "source": "https://quaternius.com/packs/stylizednaturemegakit.html",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 1.0,
+      "sha256": "051615552d7411d42d503b030e1b98a782db1ca68064e8a5c3f3d5074ee1ddcd",
+      "height_m": 0,
+      "tags": [
+        "nature"
+      ],
+      "required_animations": []
+    },
+    {
+      "id": "cc0_animal_dog",
+      "path": "cc0/animals/Dog.glb",
+      "type": "character",
+      "quality": "production",
+      "source": "https://opengameart.org/content/animated-animales-low-poly (tô màu vertex + subdivision bởi scripts/import_cc0.py)",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 0.128,
+      "sha256": "82e8c62d2fe3d7020b1803cbeae5d663fb93ea9ee9d0b0d3e39e2a0411a79d45",
+      "height_m": 0.6,
+      "tags": [
+        "quadruped"
+      ],
+      "required_animations": [
+        "Idle",
+        "Walking"
+      ]
+    },
+    {
+      "id": "cc0_animal_wolf",
+      "path": "cc0/animals/Wolf.glb",
+      "type": "character",
+      "quality": "production",
+      "source": "https://opengameart.org/content/animated-animales-low-poly (tô màu vertex + subdivision bởi scripts/import_cc0.py)",
+      "author": "Quaternius",
+      "license": "CC0-1.0",
+      "scale": 0.14,
+      "sha256": "70eb1ee723a549bae36cb059a5533e5db8d5adab2b6c65a74c0c84e243a72795",
+      "height_m": 0.6,
+      "tags": [
+        "quadruped"
+      ],
+      "required_animations": [
+        "Idle",
+        "Walking"
+      ]
     }
   ]
 }

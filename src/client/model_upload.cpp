@@ -1,5 +1,6 @@
 #include "client/model_upload.hpp"
 
+#include <algorithm>
 #include <format>
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -45,6 +46,8 @@ GpuModel upload_model(render::Renderer& r, const asset::Model& m, const std::str
         part.material.normal_tex = tex_of(mat.normal_image, render::kTexFlatNormal);
         part.material.orm_tex = tex_of(mat.orm_image, render::kTexWhite);
         part.material.emissive = (mat.emissive.r + mat.emissive.g + mat.emissive.b) / 3.0f;
+        part.material.alpha_cutoff = mat.alpha_mask ? std::max(mat.alpha_cutoff, 0.05f) : 0.0f;
+        part.material.double_sided = mat.double_sided;
       }
       gm.parts.push_back(part);
     }

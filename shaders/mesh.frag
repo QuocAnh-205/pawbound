@@ -77,8 +77,12 @@ void main() {
     }
   }
 
-  vec4 base = texture(textures[draw.tex.x], v_uv) * draw.base_color * v_color;
-  if (base.a < 0.5) discard;  // alpha mask (lá cây, hàng rào)
+  vec4 tex = texture(textures[draw.tex.x], v_uv);
+  // Vật liệu có gió: vertex color.a là trọng số lay, không phải độ trong suốt
+  float va = (flags & FLAG_WIND) != 0u ? 1.0 : v_color.a;
+  vec4 base = tex * draw.base_color * vec4(v_color.rgb, va);
+  float cutoff = (flags & FLAG_ALPHA_MASK) != 0u ? draw.extra.x : 0.5;
+  if (base.a < cutoff) discard;  // alpha mask (lá cây, cỏ, hàng rào)
   vec3 albedo = base.rgb;
 
   if ((flags & FLAG_UNLIT) != 0u) {
@@ -92,11 +96,31 @@ void main() {
   float metallic = clamp(draw.mat_params.x * orm.b, 0.0, 1.0);
 
   vec3 Ng = normalize(v_normal);
+  if ((flags & FLAG_DOUBLE_SIDED) != 0u && !gl_FrontFacing) Ng = -Ng;  // mặt sau của lá/cỏ
   vec3 T = normalize(v_tangent.xyz - Ng * dot(Ng, v_tangent.xyz));
   vec3 B = cross(Ng, T) * v_tangent.w;
   vec3 tn = texture(textures[draw.tex.y], v_uv).xyz * 2.0 - 1.0;
   vec3 N = normalize(mat3(T, B, Ng) * tn);
   vec3 V = frame.camera_back_dir.w > 0.5 ? normalize(frame.camera_back_dir.xyz - v_world) : normalize(frame.camera_back_dir.xyz);
+
+  // Mặt nước: sóng nhiều lớp, Fresnel phản chiếu bầu trời, lấp lánh mặt trời
+  if ((flags & FLAG_WATER) != 0u) {
+    float t = frame.params.z;
+    vec2 p = v_world.xz;
+    vec2 g = vec2(cos(p.x * 0.35 + t * 1.1) * 0.35 + cos(p.x * 1.3 - p.y * 0.7 + t * 2.1) * 0.12,
+                  cos(p.y * 0.29 + t * 0.9) * 0.35 + cos(p.y * 1.7 + p.x * 0.5 + t * 1.7) * 0.12);
+    vec3 Nw = normalize(vec3(-g.x * 0.18, 1.0, -g.y * 0.18));
+    float fres = 0.04 + 0.96 * pow(1.0 - max(dot(Nw, V), 0.0), 5.0);
+    vec3 R = reflect(-V, Nw);
+    vec3 sky = mix(frame.sky_horizon.rgb, frame.sky_zenith.rgb, clamp(R.y * 1.5, 0.0, 1.0));
+    vec3 deep = albedo * (0.25 + 0.75 * frame.sky_color.w);
+    vec3 H = normalize(V + normalize(frame.sun_dir.xyz));
+    float glint = pow(max(dot(Nw, H), 0.0), 220.0) * frame.sun_dir.w * shadow_factor(v_world, Nw);
+    vec3 wc = mix(deep, sky, fres) + frame.sun_color.rgb * glint * 1.5;
+    float fog_w = 1.0 - exp(-frame.fog_color.w * length(v_world - frame.camera_back_dir.xyz));
+    out_color = vec4(mix(wc, frame.fog_color.rgb, clamp(fog_w, 0.0, 1.0)), 1.0);
+    return;
+  }
 
   vec3 color = vec3(0.0);
   // Mặt trời / mặt trăng
@@ -118,6 +142,12 @@ void main() {
   vec3 ambient = mix(frame.ground_color.rgb, frame.sky_color.rgb, up) * frame.sky_color.w;
   color += ambient * albedo * ao * (1.0 - metallic * 0.5);
   color += albedo * draw.mat_params.z;  // emissive
+  // Lá/cỏ (vật liệu có gió): ánh sáng xuyên qua lá khi nhìn ngược nắng — tán cây sáng, không bị "nhựa"
+  if ((flags & FLAG_WIND) != 0u) {
+    vec3 Ls = normalize(frame.sun_dir.xyz);
+    float back = pow(clamp(dot(-V, Ls), 0.0, 1.0), 3.0) * 0.6 + max(dot(-Ng, Ls), 0.0) * 0.35;
+    color += albedo * frame.sun_color.rgb * frame.sun_dir.w * back * 0.25 * sh;
+  }
 
   // Sương mù theo khoảng cách: 3D tính từ camera (che rìa thế giới), 2.5D từ tâm cảnh
   float fog_d = frame.camera_back_dir.w > 0.5 ? length(v_world - frame.camera_back_dir.xyz) : length(v_world.xz - frame.focus.xz);

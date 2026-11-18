@@ -5,7 +5,8 @@ endif()
 set(PB_SHADER_SRC "${CMAKE_SOURCE_DIR}/shaders")
 set(PB_SHADER_OUT "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 set(PB_SHADER_INCS "")
-foreach(s mesh.vert mesh.frag shadow.vert tonemap.vert tonemap.frag mesh_skinned.vert shadow_skinned.vert overlay.vert overlay.frag)
+foreach(s mesh.vert mesh.frag shadow.vert tonemap.vert tonemap.frag mesh_skinned.vert shadow_skinned.vert overlay.vert overlay.frag
+          shadow_mask.vert shadow_mask.frag sky.vert sky.frag)
   set(out "${PB_SHADER_OUT}/${s}.inc")
   add_custom_command(
     OUTPUT "${out}"

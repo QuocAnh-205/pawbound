@@ -41,6 +41,10 @@ struct Material {
   uint32_t orm_tex = kTexWhite;
   bool cutaway = true;  // bị làm mờ khi che nhân vật
   bool unlit = false;
+  float alpha_cutoff = 0.0f;  // > 0: cắt theo alpha (lá cây, cỏ)
+  bool double_sided = false;  // không cull mặt sau
+  float wind = 0.0f;          // > 0: lay theo gió (vertex color.a = trọng số lay)
+  bool water = false;         // mặt nước có sóng + phản chiếu trời
 };
 
 struct DrawItem {
@@ -85,6 +89,11 @@ struct SceneParams {
   float vignette = 0.25f;
   float time = 0.0f;
   glm::vec4 clear_color{0.5f, 0.6f, 0.75f, 1.0f};
+  // Bầu trời (vẽ bằng shader): màu đỉnh/chân trời, độ phủ mây, sức gió (lay cỏ/lá)
+  glm::vec3 sky_zenith{0.22f, 0.45f, 0.85f};
+  glm::vec3 sky_horizon{0.68f, 0.80f, 0.92f};
+  float cloud_coverage = 0.45f;
+  float wind_strength = 0.06f;
   std::vector<PointLight> point_lights;  // tối đa 8 (gần focus nhất)
 };
 

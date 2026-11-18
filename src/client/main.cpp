@@ -161,7 +161,7 @@ class ClientApp final : public pb::Application {
       pb::log::info("client", "world seed {} ({} nhà, {} props) — hash {}", lr.world.seed, lr.world.stats.buildings,
                     lr.world.stats.props, lr.stored_hash.substr(0, 16));
       world_hash_ = lr.stored_hash;
-      world_ = std::make_unique<pb::client::WorldView>(*renderer_, std::move(lr.world), args_.world_dir);
+      world_ = std::make_unique<pb::client::WorldView>(*renderer_, std::move(lr.world), args_.world_dir, args_.asset_root);
       scene_.focus = world_->spawn_point();
       if (args_.at_x >= 0) scene_.focus = {args_.at_x, world_->data().height_at(args_.at_x, args_.at_z), args_.at_z};
       // Phase 6: chó người chơi
@@ -405,6 +405,7 @@ class ClientApp final : public pb::Application {
     sp.proj = camera_.proj(aspect_);
     sp.camera_back_dir = camera_.back_dir();
     sp.camera_pos = camera_.position();
+    sp.time = static_cast<float>(SDL_GetTicks()) / 1000.0f;  // gió, mây, sóng nước
     sp.perspective = camera_.perspective();
     sp.focus = scene_.focus;
     // Góc thứ nhất: không cần làm mờ vật che; góc thứ ba: làm mờ tường giữa camera và con chó
@@ -440,13 +441,14 @@ class ClientApp final : public pb::Application {
         sp.fog_color = l.sky;
         sp.fog_density = l.fog_density;
         for (auto& pl : sp.point_lights) pl.intensity *= l.street_lights;
+        set_sky(sp, l.sky, 0.3f + 0.65f * fx.cloud, 0.06f + 0.1f * fx.rain);
       } else if (session_) {
         apply_lighting(sp, session_->world_sim());
         sp.exposure += session_->lightning() * 1.5f;
       } else {
         apply_time_of_day(sp, time_of_day_);
       }
-      if (sp.perspective) sp.fog_density = std::max(sp.fog_density, 0.009f);
+      if (sp.perspective) sp.fog_density = std::max(sp.fog_density, 0.0045f);  // khói xa nhẹ, vẫn thấy cảnh xa
       overlay_.clear();
       if (session_) session_->draw_hud(overlay_, width_, height_, time_of_day_);
       if (net_) net_->draw_hud(overlay_, width_, height_);
@@ -513,6 +515,16 @@ class ClientApp final : public pb::Application {
     sp.fog_color = l.sky;
     sp.fog_density = l.fog_density;
     for (auto& p : sp.point_lights) p.intensity *= l.street_lights;
+    set_sky(sp, l.sky, 0.3f + 0.65f * ws.effects().cloud, 0.06f + 0.10f * ws.effects().storm + 0.05f * ws.effects().rain);
+  }
+  // Bầu trời: chân trời = màu trời của hệ thời tiết (hơi sáng), đỉnh trời xanh đậm hơn; sương mù trùng màu chân trời
+  static void set_sky(pb::render::SceneParams& sp, glm::vec3 sky, float cloud, float wind) {
+    sp.sky_horizon = glm::min(sky * 1.12f + glm::vec3(0.04f), glm::vec3(1.0f));
+    sp.sky_zenith = glm::clamp(sky * glm::vec3(0.42f, 0.68f, 1.12f), glm::vec3(0.0f), glm::vec3(1.0f));
+    sp.cloud_coverage = std::clamp(cloud, 0.0f, 1.0f);
+    sp.wind_strength = wind;
+    sp.fog_color = sp.sky_horizon;
+    sp.clear_color = glm::vec4(sp.sky_horizon, 1.0f);
   }
   // Ánh sáng theo giờ cho test scene Phase 3 (không có WorldSim).
   static void apply_time_of_day(pb::render::SceneParams& sp, float hour) {
@@ -533,6 +545,7 @@ class ClientApp final : public pb::Application {
     sp.ambient_intensity = 0.25f + 0.45f * day;
     sp.clear_color = glm::vec4(sp.sky_color, 1.0f);
     sp.fog_color = sp.sky_color;
+    set_sky(sp, sp.sky_color, 0.4f, 0.06f);
     sp.fog_density = 0.0015f;
     for (auto& l : sp.point_lights) l.intensity *= (1.0f - day);  // đèn đường chỉ sáng khi tối
   }

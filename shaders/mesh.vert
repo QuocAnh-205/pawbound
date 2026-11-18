@@ -15,6 +15,7 @@ layout(location = 4) out vec4 v_color;
 
 void main() {
   vec4 world = draw.model * vec4(in_pos, 1.0);
+  if ((draw.tex.w & FLAG_WIND) != 0u) world.xyz += wind_offset(world.xyz, in_color.a);
   mat3 nm = transpose(inverse(mat3(draw.model)));
   v_world = world.xyz;
   v_normal = normalize(nm * in_normal);

@@ -13,6 +13,10 @@ vec3 aces(vec3 x) {
 void main() {
   vec3 c = texture(hdr, v_uv).rgb * pc.params.x;
   c = aces(c);
+  // Chỉnh màu kiểu stylized: tăng bão hòa + tương phản nhẹ (ACES làm nhạt màu vùng sáng)
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = clamp(mix(vec3(l), c, 1.22), 0.0, 1.0);
+  c = clamp((c - 0.5) * 1.06 + 0.5, 0.0, 1.0);
   vec2 q = v_uv - 0.5;
   c *= 1.0 - pc.params.y * dot(q, q) * 1.6;
   out_color = vec4(c, 1.0);

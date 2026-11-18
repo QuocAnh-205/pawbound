@@ -4,6 +4,10 @@
 
 #define FLAG_CUTAWAY 1u
 #define FLAG_UNLIT 2u
+#define FLAG_ALPHA_MASK 4u   // cắt theo alpha (lá cây, cỏ)
+#define FLAG_WIND 8u         // lay theo gió; vertex color.a = trọng số lay (0 gốc, 1 ngọn)
+#define FLAG_WATER 16u       // mặt nước có sóng
+#define FLAG_DOUBLE_SIDED 32u
 
 layout(set = 0, binding = 0, std140) uniform FrameUniforms {
   mat4 view_proj;
@@ -18,6 +22,9 @@ layout(set = 0, binding = 0, std140) uniform FrameUniforms {
   vec4 params;           // x: exposure; y: 1/shadow_size; z: thời gian; w: số point light
   vec4 point_pos[MAX_POINT_LIGHTS];    // xyz, w: bán kính
   vec4 point_color[MAX_POINT_LIGHTS];  // rgb * cường độ
+  mat4 inv_view_proj;    // dựng tia nhìn cho bầu trời
+  vec4 sky_zenith;       // rgb màu đỉnh trời; w: độ phủ mây 0..1
+  vec4 sky_horizon;      // rgb màu chân trời; w: sức gió
 } frame;
 
 layout(push_constant) uniform DrawPush {
@@ -25,4 +32,13 @@ layout(push_constant) uniform DrawPush {
   vec4 base_color;
   vec4 mat_params;  // x: metallic, y: roughness, z: emissive, w: offset ma trận joint (skinned)
   uvec4 tex;        // x: base color, y: normal, z: ORM, w: flags
+  vec4 extra;       // x: ngưỡng alpha, y: hệ số gió của vật liệu
 } draw;
+
+// Gió: dịch theo thế giới, biên độ theo trọng số w (0 ở gốc) — dùng chung cho pass màu và pass bóng
+vec3 wind_offset(vec3 wp, float w) {
+  float t = frame.params.z;
+  float s = frame.sky_horizon.w * draw.extra.y * w;
+  return vec3(sin(t * 1.9 + wp.x * 0.42 + wp.z * 0.31) + 0.35 * sin(t * 4.3 + wp.z * 1.7), 0.0,
+              cos(t * 1.6 + wp.x * 0.27 - wp.z * 0.39) + 0.35 * cos(t * 3.7 + wp.x * 1.3)) * s;
+}

@@ -7,6 +7,11 @@
 namespace pb::platform {
 
 std::unique_ptr<Platform> Platform::create(const WindowDesc& desc, std::string& error) {
+#if defined(__ANDROID__)
+  // Điện thoại: chỉ chơi NGANG (xoay theo cảm biến giữa hai chiều ngang), toàn màn hình, không bị khóa màn hình
+  SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+  SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "0");
+#endif
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
     error = std::string("SDL_Init thất bại: ") + SDL_GetError();
     return nullptr;
@@ -14,6 +19,9 @@ std::unique_ptr<Platform> Platform::create(const WindowDesc& desc, std::string& 
   SDL_WindowFlags flags = 0;
   if (desc.resizable) flags |= SDL_WINDOW_RESIZABLE;
   if (desc.hidden) flags |= SDL_WINDOW_HIDDEN;
+#if defined(__ANDROID__)
+  flags |= SDL_WINDOW_FULLSCREEN;  // ẩn thanh trạng thái/điều hướng (immersive)
+#endif
   if (desc.vulkan) flags |= SDL_WINDOW_VULKAN;
 
   std::unique_ptr<Platform> p(new Platform());

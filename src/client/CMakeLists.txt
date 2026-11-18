@@ -10,6 +10,7 @@ set(PB_CLIENT_SOURCES
   npc_view.cpp
   net_game.cpp
   touch_controls.cpp
+  mesh_batcher.cpp
   android_bootstrap.cpp
 )
 if(ANDROID)
